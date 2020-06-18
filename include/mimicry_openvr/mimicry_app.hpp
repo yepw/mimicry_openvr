@@ -13,13 +13,56 @@ typedef vr::TrackedDeviceIndex_t DevIx;
 typedef vr::VRControllerState_t DevState;
 typedef vr::EVRButtonId ButtonId;
 
-struct Pos2D
+struct Vec2D
 {
-	float x;
-	float y;
+	union 
+	{
+		struct 
+		{
+			float x, y;
+		};
+		float vec[2];
+	};
 
-	Pos2D() { x = 0; y = 0; }
-	Pos2D(float x_val, float y_val) : x(x_val), y(y_val) {}
+	Vec2D() : x(0), y(0) {}
+	Vec2D(float x_val, float y_val) : x(x_val), y(y_val) {}
+};
+
+struct Vec3D
+{
+	union 
+	{
+		struct 
+		{
+			float x, y, z;
+		};
+		float vec[3];
+	};
+
+	Vec3D() : x(0), y(0), z(0) {}
+	Vec3D(float x_val, float y_val, float z_val) : x(x_val), y(y_val), z(z_val) {}
+};
+
+struct Quaternion
+{
+	union 
+	{
+		struct 
+		{
+			float x, y, z, w;
+		};
+		float vec[4];
+	};
+
+	Quaternion() : x(0), y(0), z(0), w(0) {}
+	Quaternion(float x_val, float y_val, float z_val, float w_val) : x(x_val), y(y_val), 
+		z(z_val), w(w_val) {}
+};
+
+struct VRPose
+{
+	Vec3D pos;
+	Quaternion quat;
 };
 
 struct VRButton
@@ -28,7 +71,7 @@ struct VRButton
 	std::string name;
 	bool pressed;
 	float pressure;
-	Pos2D touch_pos;
+	Vec2D touch_pos;
 	std::map<std::string, bool> val_types;
 
 	static std::map<std::string, ButtonId> KEY_TO_ID;
@@ -56,6 +99,7 @@ struct VRDevice
 
 	std::string name;
 	bool track_pose;
+	VRPose pose;
 	DeviceRole role;
 	std::map<ButtonId, VRButton *> buttons;
 };
@@ -98,7 +142,6 @@ private:
 	VRDevice * findDevFromRole(VRDevice::DeviceRole role, bool from_active);
 	VRDevice * activateDevice(DevIx ix);
 	void deactivateDevice(DevIx ix);
-	void handleButtonByProp(VRButton *button, vr::VRControllerAxis_t axis, int prop);
 
 	bool appInit(std::string params_file);
 	bool readParameters(std::string filename);

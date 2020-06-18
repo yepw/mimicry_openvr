@@ -154,14 +154,14 @@ void MimicryApp::deactivateDevice(DevIx ix)
  * 		axis - struct containing analog data
  * 		prop - type of button
  **/
-void MimicryApp::handleButtonByProp(VRButton *button, vr::VRControllerAxis_t axis, int prop)
+void handleButtonByProp(VRButton *button, vr::VRControllerAxis_t axis, int prop)
 {
 	switch (prop)
 	{
 		case vr::k_eControllerAxis_TrackPad:
 		case vr::k_eControllerAxis_Joystick:
 		{
-			button->touch_pos = Pos2D(axis.x, axis.y);
+			button->touch_pos = Vec2D(axis.x, axis.y);
 		}	break;
 
 		case vr::k_eControllerAxis_Trigger:
@@ -174,6 +174,48 @@ void MimicryApp::handleButtonByProp(VRButton *button, vr::VRControllerAxis_t axi
 			
 		}	break;
 	}
+}
+
+/**
+ * Get position vector from OpenVR device pose matrix.
+ * 
+ * Params:
+ * 		matrix - pose matrix
+ * 
+ * Returns: position vector.
+ **/
+Vec3D getPositionFromPose(vr::HmdMatrix34_t matrix) 
+{
+	Vec3D pos;
+
+	pos.vec[0] = matrix.m[0][3];
+	pos.vec[1] = matrix.m[1][3];
+	pos.vec[2] = matrix.m[2][3];
+
+	return pos;
+}
+
+/**
+ * Get orientation quaternion from OpenVR device pose matrix.
+ * 
+ * Params:
+ * 		matrix - pose matrix
+ * 
+ * Returns: orientation quaternion.
+ **/
+Quaternion getOrientationFromPose(vr::HmdMatrix34_t matrix) 
+{
+	Quaternion quat;
+
+	quat.w = sqrt(fmax(0, 1 + matrix.m[0][0] + matrix.m[1][1] + matrix.m[2][2])) / 2;
+	quat.x = sqrt(fmax(0, 1 + matrix.m[0][0] - matrix.m[1][1] - matrix.m[2][2])) / 2;
+	quat.y = sqrt(fmax(0, 1 - matrix.m[0][0] + matrix.m[1][1] - matrix.m[2][2])) / 2;
+	quat.z = sqrt(fmax(0, 1 - matrix.m[0][0] - matrix.m[1][1] + matrix.m[2][2])) / 2;
+	quat.x = copysign(quat.x, matrix.m[2][1] - matrix.m[1][2]);
+	quat.y = copysign(quat.y, matrix.m[0][2] - matrix.m[2][0]);
+	quat.z = copysign(quat.z, matrix.m[1][0] - matrix.m[0][1]);
+
+	return quat;
 }
 
 /**
@@ -218,7 +260,7 @@ bool MimicryApp::readParameters(std::string filename) {
 		std::string cur_dev = "dev" + std::to_string(i);
 
 		dev->name = j[cur_dev]["_name"];
-		dev->track_pose = j[cur_dev]["_pose"];
+		dev->track_pose = j[cur_dev]["_track_pose"];
 		dev->role = roleNameToEnum(j[cur_dev]["_role"]);
 
 		if (m_inactive_dev.find(dev->name) != m_inactive_dev.end()) {
@@ -346,7 +388,6 @@ void MimicryApp::runMainLoop(std::string params_file)
 		goto shutdown;
 	}
 
-
 	m_running = true;
 	while (m_running) {
 		handleInput();
@@ -375,6 +416,8 @@ bool MimicryApp::appInit(std::string filename)
 	if (!readParameters(filename)) {
 		return false;
 	}
+
+	// TODO: Add input socket for vibration and quitting
 
 	int opt = 1;
 	sockaddr_in address;
@@ -417,8 +460,6 @@ bool MimicryApp::appInit(std::string filename)
  **/
 void MimicryApp::handleInput()
 {
-	// TODO: Add trigger for quit
-
 	auto start = std::chrono::high_resolution_clock::now();
 
 	// TODO: We don't care about events--change this to a sleep
@@ -438,8 +479,6 @@ void MimicryApp::handleInput()
 		}
 	}
 
-	// TODO: Get pose from devices
-
 	// Deactivate all devices and reactivate them if still connected
 	std::map<DevIx, VRDevice *>::iterator it = m_devices.begin();
 	for ( ; it != m_devices.end(); it++) {
@@ -451,14 +490,22 @@ void MimicryApp::handleInput()
 			continue;
 		}
 
+		vr::TrackedDevicePose_t dev_pose;
+		DevState dev_state;
+		m_vrs->GetControllerStateWithPose(vr::TrackingUniverseStanding, ix, &dev_state, 
+			sizeof(dev_state), &dev_pose);
+
+		if (!dev_pose.bPoseIsValid) {
+			continue;
+		}
+
 		VRDevice *dev = activateDevice(ix);
+		if (dev == NULL) {
+			continue;
+		}
 
-		if (dev != NULL) {
-			vr::TrackedDevicePose_t dev_pose;
-			DevState dev_state;
-			m_vrs->GetControllerStateWithPose(vr::TrackingUniverseStanding, ix, &dev_state, 
-				sizeof(dev_state), &dev_pose);
-
+		// Exclude trackers from button handling
+		if (dev->role == VRDevice::DeviceRole::LEFT || dev->role == VRDevice::DeviceRole::RIGHT) {
 			std::map<ButtonId, VRButton *>::iterator it = dev->buttons.begin();
 			for ( ; it != dev->buttons.end(); it++) {
 				VRButton *button = it->second;
@@ -522,13 +569,10 @@ void MimicryApp::handleInput()
 				}
 			}
 		}
-	}
-
-	// TODO: It's not necessary to customize the types since it's possible to identify
-	// the appropriate output based on the button
-	
-	// TODO: Handle shutdown through keyboard interrupt
-
+		
+		dev->pose.pos = getPositionFromPose(dev_pose.mDeviceToAbsoluteTracking);
+		dev->pose.quat = getOrientationFromPose(dev_pose.mDeviceToAbsoluteTracking);
+	}	
 }
 
 bool MimicryApp::processEvent(const vr::VREvent_t &event)
@@ -573,7 +617,17 @@ void MimicryApp::postOutputData()
 	for ( ; it != m_devices.end(); it++) {
 		VRDevice *dev = it->second;
 		
-		j[dev->name]["_role"] = roleEnumToName(dev->role);
+		j[dev->name]["role"] = roleEnumToName(dev->role);
+
+		VRPose dev_pose = dev->pose;
+		j[dev->name]["pose"]["position"]["x"] = dev_pose.pos.x;
+		j[dev->name]["pose"]["position"]["y"] = dev_pose.pos.y;
+		j[dev->name]["pose"]["position"]["z"] = dev_pose.pos.z;
+
+		j[dev->name]["pose"]["orientation"]["x"] = dev_pose.quat.x;
+		j[dev->name]["pose"]["orientation"]["y"] = dev_pose.quat.y;
+		j[dev->name]["pose"]["orientation"]["z"] = dev_pose.quat.z;
+		j[dev->name]["pose"]["orientation"]["w"] = dev_pose.quat.w;
 
 		std::map<ButtonId, VRButton *>::iterator b_it = dev->buttons.begin();
 		for ( ; b_it != dev->buttons.end(); b_it++) {
@@ -602,5 +656,5 @@ void MimicryApp::postOutputData()
 	
 	std::string output = j.dump(3);
 	send(m_socket, output.c_str(), output.size(), 0);
-	std::cout << "Sent" << std::endl;
+	std::cout << output << std::endl;
 }

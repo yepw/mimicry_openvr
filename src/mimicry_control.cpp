@@ -12,6 +12,7 @@ using json = nlohmann::json;
 // - Parameter file location
 // - Verbose output?
 // - Demo mode (to test button config)
+// - Flag that program is running sucessfully
 
 int main(int argc, char* argv[]) 
 {

@@ -18,5 +18,5 @@ int main(int argc, char* argv[])
 	MimicryApp app = MimicryApp();
 
 	std::cout << "Initializing mimicry..." << std::endl;
-	app.runMainLoop("params.json");
+	app.runMainLoop("../param_files/params.json");
 }

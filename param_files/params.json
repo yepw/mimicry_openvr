@@ -1,0 +1,85 @@
+{
+    "_bimanual": true,
+    "_num_devices": 2,
+    "_out_addr": "",
+    "_out_port": 8080,
+    "_update_freq": 30,
+    "dev0": {
+        "_name": "vive0",
+        "_track_pose": true,
+        "_role": "left",
+        "buttons": {
+            "APP_MENU": {
+                "name": "vive0_menu",
+                "types": {
+                    "2d": false,
+                    "boolean": true,
+                    "pressure": false
+                }
+            },
+            "AXIS0": {
+                "name": "vive0_trackpad",
+                "types": {
+                    "2d": true,
+                    "boolean": true,
+                    "pressure": false
+                }
+            },
+            "AXIS1": {
+                "name": "vive0_trigger",
+                "types": {
+                    "2d": false,
+                    "boolean": true,
+                    "pressure": true
+                }
+            },
+            "GRIP": {
+                "name": "vive0_gripper",
+                "types": {
+                    "2d": false,
+                    "boolean": true,
+                    "pressure": false
+                }
+            }
+        }
+    },
+    "dev1": {
+        "_name": "vive1",
+        "_track_pose": true,
+        "_role": "right",
+        "buttons": {
+            "APP_MENU": {
+                "name": "vive1_menu",
+                "types": {
+                    "2d": false,
+                    "boolean": true,
+                    "pressure": false
+                }
+            },
+            "AXIS0": {
+                "name": "vive1_trackpad",
+                "types": {
+                    "2d": true,
+                    "boolean": true,
+                    "pressure": false
+                }
+            },
+            "AXIS1":{
+                "name": "vive1_trigger",
+                "types": {
+                    "2d": false,
+                    "boolean": true,
+                    "pressure": true
+                }
+            },
+            "GRIP": {
+                "name": "vive1_gripper",
+                "types": {
+                    "2d": false,
+                    "boolean": true,
+                    "pressure": false
+                }
+            }
+        }
+    }
+}

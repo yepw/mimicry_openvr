@@ -20,7 +20,7 @@ As of June 2020, only Linux is supported (tested under Ubuntu 18.04).
 * Make the package: `make`
 
 ## Running
-* Currently, the program reads the `params.json` file from the param_files folder, though this will be changed to a parameter to the program later. If you need to make any changes to the parameters file, make sure to edit the one in that folder
+* Currently, the program reads the `params.json` file from the `param_files` folder, though this will be changed to an argument to the program later. If you need to make any changes to the parameters file, make sure to edit the one in that folder
 * SteamVR must be running in order for the program to run
 
 ## Parameter File

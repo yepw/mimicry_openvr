@@ -1,0 +1,8 @@
+# mimicry_control
+
+This package contains the mimicry_control functionality using the OpenVR API directly.
+As of June 2020, only Linux is supported.
+
+
+# Setup
+

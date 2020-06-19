@@ -1,6 +1,5 @@
 #include <iostream>
 
-#include <openvr.h>
 #include "mimicry_openvr/json.hpp"
 #include "mimicry_openvr/mimicry_app.hpp"
 

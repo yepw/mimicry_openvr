@@ -77,16 +77,6 @@ struct VRButton
 	static std::map<std::string, ButtonId> KEY_TO_ID;
 };
 
-std::map<std::string, ButtonId> VRButton::KEY_TO_ID = {
-	{"APP_MENU", vr::k_EButton_ApplicationMenu},
-	{"GRIP", vr::k_EButton_Grip},
-	{"AXIS0", vr::k_EButton_Axis0},
-	{"AXIS1", vr::k_EButton_Axis1},
-	{"AXIS2", vr::k_EButton_Axis2},
-	{"AXIS3", vr::k_EButton_Axis3},
-	{"AXIS4", vr::k_EButton_Axis4}
-};
-
 struct VRDevice
 {
     enum DeviceRole
@@ -150,55 +140,5 @@ private:
 	
 	void postOutputData();
 };
-
-
-VRDevice::DeviceRole roleNameToEnum(std::string name)
-{
-    VRDevice::DeviceRole role;
-
-    if (name == "left") {
-        role = VRDevice::DeviceRole::LEFT;
-    }
-    else if (name == "right") {
-        role = VRDevice::DeviceRole::RIGHT;
-    }
-    else if (name == "tracker") {
-        role = VRDevice::DeviceRole::TRACKER;
-    }
-    else {
-        role = VRDevice::DeviceRole::INVALID;
-    }
-
-    return role;
-}
-
-std::string roleEnumToName(VRDevice::DeviceRole role) {
-	std::string name;
-
-	switch (role)
-	{
-		case VRDevice::DeviceRole::LEFT:
-		{
-			name = "left";
-		}	break;
-
-		case VRDevice::DeviceRole::RIGHT:
-		{
-			name = "right";
-		}	break;
-
-		case VRDevice::DeviceRole::TRACKER:
-		{
-			name = "tracker";
-		}	break;
-
-		case VRDevice::DeviceRole::INVALID:
-		{
-			name = "invalid";
-		}	break;
-	}
-
-	return name;
-}
 
 #endif // __MIMICRY_APP_HPP__

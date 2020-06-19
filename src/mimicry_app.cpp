@@ -4,7 +4,8 @@
 #include <chrono>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h> 
+#include <arpa/inet.h>
+#include <unistd.h>
 
 #include <openvr.h>
 
@@ -16,6 +17,66 @@ using json = nlohmann::json;
 typedef vr::TrackedDeviceIndex_t DevIx;
 typedef vr::VRControllerState_t DevState;
 typedef vr::EVRButtonId ButtonId;
+
+
+std::map<std::string, ButtonId> VRButton::KEY_TO_ID = {
+	{"APP_MENU", vr::k_EButton_ApplicationMenu},
+	{"GRIP", vr::k_EButton_Grip},
+	{"AXIS0", vr::k_EButton_Axis0},
+	{"AXIS1", vr::k_EButton_Axis1},
+	{"AXIS2", vr::k_EButton_Axis2},
+	{"AXIS3", vr::k_EButton_Axis3},
+	{"AXIS4", vr::k_EButton_Axis4}
+};
+
+VRDevice::DeviceRole roleNameToEnum(std::string name)
+{
+    VRDevice::DeviceRole role;
+
+    if (name == "left") {
+        role = VRDevice::DeviceRole::LEFT;
+    }
+    else if (name == "right") {
+        role = VRDevice::DeviceRole::RIGHT;
+    }
+    else if (name == "tracker") {
+        role = VRDevice::DeviceRole::TRACKER;
+    }
+    else {
+        role = VRDevice::DeviceRole::INVALID;
+    }
+
+    return role;
+}
+
+std::string roleEnumToName(VRDevice::DeviceRole role) {
+	std::string name;
+
+	switch (role)
+	{
+		case VRDevice::DeviceRole::LEFT:
+		{
+			name = "left";
+		}	break;
+
+		case VRDevice::DeviceRole::RIGHT:
+		{
+			name = "right";
+		}	break;
+
+		case VRDevice::DeviceRole::TRACKER:
+		{
+			name = "tracker";
+		}	break;
+
+		case VRDevice::DeviceRole::INVALID:
+		{
+			name = "invalid";
+		}	break;
+	}
+
+	return name;
+}
 
 
 /**
@@ -369,18 +430,18 @@ param_exit:
 void MimicryApp::runMainLoop(std::string params_file)
 {
 	vr::EVRInitError vr_err = vr::VRInitError_None;
-
-	// TODO: Suppress initialization messages
-	// which appear on first run of program after running SteamVR
+	auto start = std::chrono::high_resolution_clock::now();
+	auto end = std::chrono::high_resolution_clock::now();
 
 	// Load the SteamVR Runtime
-	m_vrs = vr::VR_Init(&vr_err, vr::VRApplication_Overlay);
+	m_vrs = vr::VR_Init(&vr_err, vr::VRApplication_Background);
+	// NOTE: VRApplication_Background requires an OpenVR instance to already be running.
+	// In theory, the other modes will automatically launch OpenVR, but that was not the
+	// case for me.
 
     if (vr_err != vr::VRInitError_None){
 		std::cout << "Unable to init VR runtime: " << 
 			vr::VR_GetVRInitErrorAsEnglishDescription(vr_err) << std::endl;
-		// TODO: Check why SteamVR is not opened during Init
-        // Only the Background mode should require it to be already open
         goto shutdown;
 	}
 
@@ -390,8 +451,14 @@ void MimicryApp::runMainLoop(std::string params_file)
 
 	m_running = true;
 	while (m_running) {
+		std::chrono::duration<double, std::milli> time_elapsed = end - start;
+		std::chrono::duration<double, std::milli> delta = this->m_refresh_time - time_elapsed;
+		usleep(fmax(0, delta.count()) * 1000);
+
+		start = std::chrono::high_resolution_clock::now();
 		handleInput();
 		postOutputData();
+		end = std::chrono::high_resolution_clock::now();
 	}
 
 shutdown:
@@ -460,25 +527,6 @@ bool MimicryApp::appInit(std::string filename)
  **/
 void MimicryApp::handleInput()
 {
-	auto start = std::chrono::high_resolution_clock::now();
-
-	// TODO: We don't care about events--change this to a sleep
-	// SteamVR events
-	vr::VREvent_t event;
-	while(m_vrs->PollNextEvent(&event, sizeof(event))) {
-		m_running = processEvent(event);
-        if (!m_running) {
-            return;
-        }
-
-		auto now = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double, std::milli> delta = now - start;
-
-		if (delta >= this->m_refresh_time) {
-			break;
-		}
-	}
-
 	// Deactivate all devices and reactivate them if still connected
 	std::map<DevIx, VRDevice *>::iterator it = m_devices.begin();
 	for ( ; it != m_devices.end(); it++) {
@@ -573,27 +621,6 @@ void MimicryApp::handleInput()
 		dev->pose.pos = getPositionFromPose(dev_pose.mDeviceToAbsoluteTracking);
 		dev->pose.quat = getOrientationFromPose(dev_pose.mDeviceToAbsoluteTracking);
 	}	
-}
-
-bool MimicryApp::processEvent(const vr::VREvent_t &event)
-{
-	DevIx ix;
-
-	switch (event.eventType)
-	{
-        case vr::VREvent_Quit:
-        {
-            std::cout << "Quit message received" << std::endl;
-        }   break;
-
-        default:
-        {
-            // std::cout << "Event: " << vr::GetEventTypeNameFromEnum(event.eventType) << std::endl;
-        }
-
-	}
-
-	return true;
 }
 
 /**

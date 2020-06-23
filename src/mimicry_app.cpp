@@ -435,8 +435,8 @@ void MimicryApp::runMainLoop(std::string params_file)
 
 	// Load the SteamVR Runtime
 	m_vrs = vr::VR_Init(&vr_err, vr::VRApplication_Background);
-	// NOTE: VRApplication_Background requires an OpenVR instance to already be running.
-	// In theory, the other modes will automatically launch OpenVR, but that was not the
+	// NOTE: VRApplication_Background requires an SteamVR instance to already be running.
+	// In theory, the other modes will automatically launch SteamVR, but that was not the
 	// case for me.
 
     if (vr_err != vr::VRInitError_None){

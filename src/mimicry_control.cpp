@@ -12,6 +12,7 @@ using json = nlohmann::json;
 // - Verbose output?
 // - Demo mode (to test button config)
 // - Flag that program is running sucessfully
+// - Allow output for non-bimanual mode regardless of controller role
 
 int main(int argc, char* argv[]) 
 {

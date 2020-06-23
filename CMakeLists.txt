@@ -25,6 +25,10 @@ add_executable(param_writer
   src/param_writer.cpp
 )
 
+add_executable(updated_params
+  src/updated_params.cpp
+)
+
 add_executable(mimicry_control
   src/mimicry_control.cpp
 )
@@ -32,6 +36,10 @@ add_executable(mimicry_control
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(param_writer
+  ${OpenVRSDK_LIBRARIES}
+)
+
+target_link_libraries(updated_params
   ${OpenVRSDK_LIBRARIES}
 )
 

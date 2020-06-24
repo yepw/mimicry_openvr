@@ -1,13 +1,18 @@
 #include <openvr.h>
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 #include <unistd.h>
+#include <map>
 
+#include "mimicry_openvr/json.hpp"
 #include "mimicry_openvr/mimicry_app.hpp"
 #include "mimicry_openvr/updated_params.hpp"
 
 #define REFRESH_RATE 120 // Polling rate (in Hz)
+#define BUTTON_PRESS_TIME 2000 // How long buttons must be pressed (in ms)
 
+using json = nlohmann::json;
 
 vr::ETrackedControllerRole roleToVREnum(VRDevice::DeviceRole role)
 {
@@ -32,8 +37,49 @@ vr::ETrackedControllerRole roleToVREnum(VRDevice::DeviceRole role)
     }
 }
 
+std::string roleEnumToName(VRDevice::DeviceRole role)
+{
+    std::string out_role;
+
+    switch (role)
+    {
+        case VRDevice::DeviceRole::LEFT:
+        {
+            out_role = "left";
+        }   break;
+
+        case VRDevice::DeviceRole::RIGHT:
+        {
+            out_role = "right";
+        }   break;
+
+        case VRDevice::DeviceRole::TRACKER:
+        {
+            out_role = "tracker";
+        }   break;
+
+        default:
+        {
+            out_role = "invalid";
+        }   break;
+    }
+
+    return out_role;
+}
+
+std::string boolToString(bool val)
+{
+    if (val) {
+        return "true";
+    }
+    else {
+        return "false";
+    }
+}
+
 void printText(std::string text="", int newlines=1, bool flush=false)
 {
+    // TODO: Consider adding param for width of text line
     std::cout << text;
 
     for (int i = 0; i < newlines; i++) {
@@ -69,6 +115,32 @@ void dots(unsigned freq)
             printText();
         }
     }
+}
+
+bool loadingBar(double goal, double tot_elapsed=0.0)
+{
+    static int ticks = 0;
+    static const int BAR_WIDTH = 55;
+    
+    if (goal == 0.0) {
+        ticks = 0;
+        return false;
+    }
+
+    double bar_period = goal / BAR_WIDTH;
+
+    if ((tot_elapsed / bar_period) > ticks) {
+        ticks++;
+        printText("=", 0, true);
+    }
+
+    if (ticks == BAR_WIDTH) {
+        tot_elapsed = 0.0;
+        ticks = 0;
+        return false;
+    }
+
+    return true;
 }
 
 void toLowercase(std::string &in)
@@ -190,8 +262,6 @@ bool validateEntry(std::string &entry, EntryType type, int max_val=0)
                 }
             }
 
-            // TODO: Check that name hasn't been entered previously
-
             entry_valid = true;
         }   break;
     }
@@ -199,31 +269,18 @@ bool validateEntry(std::string &entry, EntryType type, int max_val=0)
     return entry_valid;
 }
 
-
-void consumeEvents(ParamInfo &params)
+bool isControllerConnected(const ParamInfo &params)
 {
-    vr::VREvent_t event;
-
-    while (params.vrs->PollNextEvent(&event, sizeof(event))) {
-        switch (event.eventType)
-        {
-            case vr::VREvent_TrackedDeviceDeactivated:
-            {
-                if (event.trackedDeviceIndex == params.contr_ix) {
-                    printText("Controller deactivated.");
-                    checkController(params, params.cur_role);
-                }
-            }   break;
-        }
-	}
+    return params.vrs->IsTrackedDeviceConnected(params.contr_ix);
 }
 
-void checkController(ParamInfo &params, VRDevice::DeviceRole role)
+
+void checkController(ParamInfo &params)
 {
     bool contr_found = false;
     vr::ETrackedDeviceClass dev_class;
     vr::ETrackedControllerRole dev_role;
-    vr::ETrackedControllerRole in_role = roleToVREnum(role);
+    vr::ETrackedControllerRole in_role = roleToVREnum(params.cur_role);
     
     printText("Looking for controller...", 0, true);
     while (!contr_found) {
@@ -235,7 +292,6 @@ void checkController(ParamInfo &params, VRDevice::DeviceRole role)
                 if (params.vrs->IsTrackedDeviceConnected(ix) && dev_role == in_role) {
                     contr_found = true;
                     params.contr_ix = ix;
-                    params.cur_role = role;
                 }
             }
         }
@@ -249,6 +305,183 @@ void checkController(ParamInfo &params, VRDevice::DeviceRole role)
     dots(0);
     printText();
     printText("Controller found.", 2);
+}
+
+void validateSingleButtonPress(ParamInfo &params)
+{
+    vr::VRControllerState_t contr_state;
+
+    if (!isControllerConnected(params)) {
+        checkController(params);
+        params.button_pressed = false;
+        return;
+    }
+
+    params.vrs->GetControllerState(params.contr_ix, &contr_state, sizeof(contr_state));
+
+    std::vector<vr::EVRButtonId>::const_iterator it = params.button_map.begin();
+    for ( ; it != params.button_map.end(); it++) {
+        bool pressed = (vr::ButtonMaskFromId(*it) & contr_state.ulButtonPressed) != 0;
+
+        if (pressed) {
+            if (params.button_pressed && (*it != params.cur_button)) {
+                params.button_pressed = false;
+                return;
+            }
+            else {
+                params.button_pressed = true;
+                params.cur_button = *it;
+            }
+        }
+        else {
+            if ((*it == params.cur_button) && params.button_pressed) {
+                params.button_pressed = false;
+                return;
+            }
+        }
+    }
+}
+
+void checkButton(ParamInfo &params)
+{
+    params.button_pressed = false;
+    params.button_selected = false;
+    bool first_loop = true;
+    bool counter_running = false;
+    auto start = std::chrono::high_resolution_clock::now();
+
+    while (!params.button_selected) {
+        validateSingleButtonPress(params);
+
+        if (params.button_pressed) {
+            if (first_loop) {
+                first_loop = false;
+                counter_running = true;
+                printText(params.button_names.at(params.cur_button) + " |", 0, true);
+                start = std::chrono::high_resolution_clock::now();
+            }
+
+            auto current = std::chrono::high_resolution_clock::now();
+            duration delta = current - start;
+            if (!loadingBar(BUTTON_PRESS_TIME, delta.count())) {
+                // TODO: Add check to exclude buttons already configured
+                // or ask whether entry should be updated
+
+                params.button_selected = true;
+                printText("|", 2);
+            }
+        }
+        else {
+            first_loop = true;
+            loadingBar(0.0);
+            if (counter_running) {
+                counter_running = false;
+                printText("");
+            }
+        }
+    }
+}
+
+void buttonInfoQuery(ParamInfo &params, VRDevice &controller, std::map<std::string, bool> types)
+{
+    std::string query;
+    std::string help_text;
+    VRButton *button_entry = new VRButton();
+    vr::EVRButtonId button = params.cur_button;
+
+    query =
+        "Is this configuration valid for " + params.button_names.at(button) + "?\n"
+        "  - boolean: " + boolToString(types["boolean"]) + "\n"
+        "  - pressure: " + boolToString(types["pressure"]) + "\n"
+        "  - 2d: " + boolToString(types["2d"]);
+    help_text =
+        "This is the data type configuration automatically detected for this button.\n"
+        "Indicate whether you agree these data types are appropriate for the button.";
+    
+    if (promptBool(query, help_text)) {
+        query =
+            "Enter a name for the button.";
+        help_text =
+            "Enter a custom name to identify this button. The output for the mimicry\n"
+            "program will use this label.";
+        button_entry->name = promptText(query, help_text);
+        button_entry->id = button;
+        button_entry->val_types["boolean"] = types["boolean"];
+        button_entry->val_types["pressure"] = types["pressure"];
+        button_entry->val_types["2d"] = types["2d"];
+
+        controller.buttons[button] = button_entry;
+    }
+    else {
+        // TODO: Handle user indicating that button data types are not valid
+    }
+}
+
+void promptButtonInfo(ParamInfo &params, VRDevice &controller)
+{
+    vr::EVRButtonId button = params.cur_button;
+    int32_t axis_prop;
+    std::map<std::string, bool> types;
+
+    switch (button)
+    {
+        case vr::k_EButton_ApplicationMenu:
+        case vr::k_EButton_Grip:
+        {
+            types["boolean"] = true;
+            types["pressure"] = false;
+            types["2d"] = false;
+            buttonInfoQuery(params, controller, types);
+        }	break;
+
+        case vr::k_EButton_Axis0:
+        case vr::k_EButton_Axis1:
+        case vr::k_EButton_Axis2:
+        case vr::k_EButton_Axis3:
+        case vr::k_EButton_Axis4:
+        {
+            int axis_offset = button - vr::k_EButton_Axis0;
+            axis_prop = params.vrs->GetInt32TrackedDeviceProperty(params.contr_ix, 
+                (vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + axis_offset));
+
+            switch (axis_prop)
+            {
+                case vr::k_eControllerAxis_TrackPad:
+                {
+                    types["boolean"] = true;
+                    types["pressure"] = false;
+                    types["2d"] = true;
+                    buttonInfoQuery(params, controller, types);
+                }   break;
+
+                case vr::k_eControllerAxis_Joystick:
+                {
+                    types["boolean"] = false;
+                    types["pressure"] = false;
+                    types["2d"] = true;
+                    buttonInfoQuery(params, controller, types);
+                }   break;
+
+                case vr::k_eControllerAxis_Trigger:
+                {
+                    types["boolean"] = true;
+                    types["pressure"] = true;
+                    types["2d"] = false;
+                    buttonInfoQuery(params, controller, types);
+                }   break;
+
+                case vr::k_eControllerAxis_None:
+                {
+                    printText("Button types could not be assigned.");
+                }   break;
+            }
+        }	break;
+
+        default:
+        {
+            printText("Button could not be recognized.");
+        }   break;
+    }
 }
 
 std::string getEntry()
@@ -303,6 +536,48 @@ std::string promptText(std::string query, std::string help_text)
     return entry;
 }
 
+void writeToFile(const ParamInfo &params)
+{
+    json j;
+
+    j["_bimanual"] = params.system.bimanual;
+    j["_num_devices"] = params.system.num_devices;
+    // j["_out_addr"] = params.out_addr;
+    // j["_out_port"] = params.out_port;
+    j["_update_freq"] = params.system.update_freq;
+
+    for (int i = 0; i < params.devices.size(); i++) {
+        std::string dev_ix = "dev" + std::to_string(i);
+        VRDevice cur_dev = params.devices[i];
+
+        j[dev_ix]["_name"] = cur_dev.name;
+        j[dev_ix]["_track_pose"] = cur_dev.track_pose;
+        j[dev_ix]["_role"] = roleEnumToName(cur_dev.role);
+
+        std::map<vr::EVRButtonId, VRButton*>::iterator it = cur_dev.buttons.begin();
+        for ( ; it != cur_dev.buttons.end(); it++) {
+            VRButton *cur_but = it->second;
+            std::string but_id = params.button_names.at(cur_but->id);
+
+            j[dev_ix]["buttons"][but_id]["name"] = cur_but->name;
+
+            std::map<std::string, bool>::iterator t_it = cur_but->val_types.begin();
+            for ( ; t_it != cur_but->val_types.end(); t_it++) {
+                std::string but_name = t_it->first;
+                bool type_valid = t_it->second;
+
+                j[dev_ix]["buttons"][but_id]["types"][but_name] = type_valid;
+            }
+        }
+    }
+
+    std::ofstream out_file;
+    out_file.open(params.out_file);
+    out_file << j.dump(4) << std::endl;
+    out_file.close();
+    printText(" * Data written to " + params.out_file + " *");
+}
+
 int main(int argc, char *argv[])
 {
     int err_val = 0;
@@ -332,7 +607,12 @@ int main(int argc, char *argv[])
         goto shutdown;
 	}
 
-    // Auto or Manual
+    // TODO: Make this more robust
+    if (argc == 1) {
+        params.out_file = "params.json";
+    }
+
+    // -- param auto_setup --
     query = "Use auto configuration?";
     help_text =
         "If true, the tool will automatically check connection to the controllers and\n"
@@ -341,33 +621,89 @@ int main(int argc, char *argv[])
     params.auto_setup = promptBool(query, help_text); 
 
     if (params.auto_setup) {
-        // Controllers Check
+        // -- param bimanual --
         query = "Configure bimanual control?";
         help_text =
             "If true, this tool will verify that there is both a left controller and a\n"
             "right controller connected. Otherwise, only the right controller will be\n"
             "configured.";
-        params.bimanual = promptBool(query, help_text);
+        params.system.bimanual = promptBool(query, help_text);
         
-        if (params.bimanual) {
-            params.num_devices = 2;
+        // -- param num_devices --
+        if (params.system.bimanual) {
+            params.system.num_devices = 2;
         }
         else {
-            params.num_devices = 1;
+            params.system.num_devices = 1;
         }
 
         // NOTE: The Right controller role appears to be the default
-        printText("Configuring right controller...");
-        checkController(params, VRDevice::RIGHT);
+        printText();
+        printText("-- Right Controller Configuration --", 2);
+        params.cur_role = VRDevice::RIGHT;
+        checkController(params);
 
-        // TODO: Prompt user to press each button in turn, detecting that it's been
-        // held for a certain amount of time. Once detected, allow user to enter a
-        // custom name and automatically detect types of input.
+        VRDevice controller;
+        controller.role = params.cur_role;
 
+        printText("Configuring buttons...\n", 0);
+        printText("Please press the button you would like to configure first ", 0);
+        printText("(press for " + std::to_string(BUTTON_PRESS_TIME / 1000) + " seconds).", 2);
+        
+        checkButton(params);
+        promptButtonInfo(params, controller);
+
+        query = "Configure another button?";
+        help_text =
+            "Specify whether more buttons should be configured.";
+        while (promptBool(query, help_text)) {
+            checkButton(params);
+            promptButtonInfo(params, controller);
+        }
+
+        // -- device name --
+        query = "Enter a name to identify the right controller.";
+        help_text =
+            "Each controller should have a unique name. This name is intended to\n"
+            "make it easier for users to identify each controller.";
+        controller.name = promptText(query, help_text);
+
+        // -- device track_pose --
+        query = "Should pose be tracked for " + controller.name + "?";
+        help_text =
+            "Indicates whether to return pose data for this device.";
+        controller.track_pose = promptBool(query, help_text);
+
+        params.devices.push_back(controller);
+
+
+        if (params.system.bimanual) {
+
+        }    
+
+
+        // TODO: Catch KeyboardInterrupt signal in case users wants to use it
+        // to break out of button loop
+        // Ask whether to dump info then
     }
     else {
         printText("Using manual setup...");
     }
+
+    printText();
+    printText("-- General Settings Configuration --", 2);
+
+    // -- param update_freq --
+    query = "How often should data be updated (in Hz)?";
+    help_text =
+        "Suggested: 60\n"
+        "This parameter indicates the refresh rate for acquiring and publishing\n"
+        "input from the configured devices. A value of '0' indicates that the refresh\n"
+        "should happen as fast as possible.";
+    params.system.update_freq = promptInt(query, help_text);
+
+
+    writeToFile(params);
 
 shutdown:
     if (params.vrs != NULL) {

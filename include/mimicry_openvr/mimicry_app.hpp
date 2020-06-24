@@ -96,11 +96,11 @@ struct VRDevice
 
 struct VRParams
 {
-	int num_devices;
+	unsigned num_devices;
 	bool bimanual;
 	std::string out_addr;
-	int out_port;
-	int update_freq;
+	unsigned out_port;
+	unsigned update_freq;
 };
 
 class MimicryApp

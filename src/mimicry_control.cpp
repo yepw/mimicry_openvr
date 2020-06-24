@@ -13,6 +13,7 @@ using json = nlohmann::json;
 // - Demo mode (to test button config)
 // - Flag that program is running sucessfully
 // - Allow output for non-bimanual mode regardless of controller role
+// - Specifying refresh rate of 0 should indicate as fast as possible
 
 int main(int argc, char* argv[]) 
 {

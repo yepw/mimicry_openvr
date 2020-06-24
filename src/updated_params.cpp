@@ -542,8 +542,8 @@ void writeToFile(const ParamInfo &params)
 
     j["_bimanual"] = params.system.bimanual;
     j["_num_devices"] = params.system.num_devices;
-    // j["_out_addr"] = params.out_addr;
-    // j["_out_port"] = params.out_port;
+    j["_out_addr"] = params.system.out_addr;
+    j["_out_port"] = params.system.out_port;
     j["_update_freq"] = params.system.update_freq;
 
     for (int i = 0; i < params.devices.size(); i++) {
@@ -586,6 +586,8 @@ int main(int argc, char *argv[])
     std::string query;
     std::string help_text;
     ParamInfo params;
+    bool default_out_addr;
+    bool default_out_port;
 
     auto refresh_in_milli = std::chrono::duration<double, std::milli>(1000 / REFRESH_RATE);
     params.refresh_time = refresh_in_milli.count() * 1000;
@@ -610,6 +612,13 @@ int main(int argc, char *argv[])
     // TODO: Make this more robust
     if (argc == 1) {
         params.out_file = "params.json";
+    }
+    else if (argc == 2) {
+        params.out_file = argv[1];
+    }
+    else {
+        printText("usage: ./updated_params [output_file]");
+        goto shutdown;
     }
 
     // -- param auto_setup --
@@ -701,6 +710,44 @@ int main(int argc, char *argv[])
         "input from the configured devices. A value of '0' indicates that the refresh\n"
         "should happen as fast as possible.";
     params.system.update_freq = promptInt(query, help_text);
+
+    // -- param out_addr --
+    query = "Use default address for data output socket?";
+    help_text =
+        "Suggested: yes\n"
+        "The default address is a blank value, which indicates a value of INADDR_ANY\n"
+        "for binding. If you need a different address for binding to the output socket,\n"
+        "you will enter it next.";
+    default_out_addr = promptBool(query, help_text);
+
+    if (!default_out_addr) {
+        query = "Enter the address to which to bind output socket.";
+        help_text =
+            "Custom address for binding output socket.";
+        params.system.out_addr = promptText(query, help_text);
+    }
+    else {
+        params.system.out_addr = "";
+    }
+
+    // -- param out_port --
+    query = "Use default port for data output socket?";
+    help_text =
+        "Suggested: yes\n"
+        "The default port for binding is set to the arbitrary value of 8080. If you\n"
+        "would like a different port for binding to the output socket, you will enter\n"
+        "it next.";
+    default_out_port = promptBool(query, help_text);
+
+    if (!default_out_port) {
+        query = "Enter the port to which to bind output socket.";
+        help_text =
+            "Custom port for binding output socket.";
+        params.system.out_port = promptInt(query, help_text);
+    }
+    else {
+        params.system.out_port = 8080;
+    }
 
 
     writeToFile(params);

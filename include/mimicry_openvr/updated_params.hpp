@@ -80,8 +80,8 @@ void buttonInfoQuery(const ParamInfo &params, VRDevice &controller, std::map<std
 
 
 void checkController(ParamInfo &params);
-void checkButton(ParamInfo &params);
-void promptButtonInfo(ParamInfo &params);
+void checkButton(ParamInfo &params, VRDevice &controller);
+void promptButtonInfo(ParamInfo &params, VRDevice &controller);
 std::string getEntry();
 std::string promptUser(std::string query, std::string help_text, EntryType type, int max_val);
 int promptInt(std::string query, std::string help_text, int max_val);

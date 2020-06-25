@@ -10,7 +10,7 @@
 #include "mimicry_openvr/updated_params.hpp"
 
 #define REFRESH_RATE 120 // Polling rate (in Hz)
-#define BUTTON_PRESS_TIME 2000 // How long buttons must be pressed (in ms)
+#define BUTTON_PRESS_TIME 750 // How long buttons must be pressed (in ms)
 
 using json = nlohmann::json;
 
@@ -342,7 +342,7 @@ void validateSingleButtonPress(ParamInfo &params)
     }
 }
 
-void checkButton(ParamInfo &params)
+void checkButton(ParamInfo &params, VRDevice &controller)
 {
     params.button_pressed = false;
     params.button_selected = false;
@@ -364,11 +364,25 @@ void checkButton(ParamInfo &params)
             auto current = std::chrono::high_resolution_clock::now();
             duration delta = current - start;
             if (!loadingBar(BUTTON_PRESS_TIME, delta.count())) {
-                // TODO: Add check to exclude buttons already configured
-                // or ask whether entry should be updated
-
                 params.button_selected = true;
                 printText("|", 2);
+
+                if (controller.buttons.find(params.cur_button) != controller.buttons.end()) {
+                    std::string query = 
+                        "This button has already been configured. Would you like to\n"
+                        "edit the entry for this button?";
+                    std::string help_text =
+                        "If true, you will be able to enter a new name for this button.";
+                    bool edit_button = promptBool(query, help_text);
+
+                    if (!edit_button) {
+
+                        params.button_selected = false;
+                        return;
+                    }
+                }
+
+                promptButtonInfo(params, controller);
             }
         }
         else {
@@ -386,35 +400,34 @@ void buttonInfoQuery(ParamInfo &params, VRDevice &controller, std::map<std::stri
 {
     std::string query;
     std::string help_text;
-    VRButton *button_entry = new VRButton();
+    VRButton *button_entry;
     vr::EVRButtonId button = params.cur_button;
 
-    query =
-        "Is this configuration valid for " + params.button_names.at(button) + "?\n"
-        "  - boolean: " + boolToString(types["boolean"]) + "\n"
-        "  - pressure: " + boolToString(types["pressure"]) + "\n"
-        "  - 2d: " + boolToString(types["2d"]);
-    help_text =
-        "This is the data type configuration automatically detected for this button.\n"
-        "Indicate whether you agree these data types are appropriate for the button.";
-    
-    if (promptBool(query, help_text)) {
-        query =
-            "Enter a name for the button.";
-        help_text =
-            "Enter a custom name to identify this button. The output for the mimicry\n"
-            "program will use this label.";
-        button_entry->name = promptText(query, help_text);
-        button_entry->id = button;
-        button_entry->val_types["boolean"] = types["boolean"];
-        button_entry->val_types["pressure"] = types["pressure"];
-        button_entry->val_types["2d"] = types["2d"];
-
-        controller.buttons[button] = button_entry;
+    if (controller.buttons.find(button) != controller.buttons.end()) {
+        button_entry = controller.buttons.at(button);
     }
     else {
-        // TODO: Handle user indicating that button data types are not valid
+        button_entry = new VRButton();
     }
+
+    query =
+        "Default data type configuration for " + params.button_names.at(button) + ":\n"
+        "  - boolean: " + boolToString(types["boolean"]) + "\n"
+        "  - pressure: " + boolToString(types["pressure"]) + "\n"
+        "  - 2d: " + boolToString(types["2d"]) + "\n\n"
+        "Enter a name for the button.";
+    help_text =
+        "Enter a custom name to identify this button. The output for the mimicry\n"
+        "program will use this label.\n"
+        "If the data type settings are incorrect, you may edit them in the parameter\n"
+        "file. Alternatively, you may run this program in manual mode.";
+    button_entry->name = promptText(query, help_text);
+    button_entry->id = button;
+    button_entry->val_types["boolean"] = types["boolean"];
+    button_entry->val_types["pressure"] = types["pressure"];
+    button_entry->val_types["2d"] = types["2d"];
+
+    controller.buttons[button] = button_entry;
 }
 
 void promptButtonInfo(ParamInfo &params, VRDevice &controller)
@@ -551,8 +564,13 @@ void writeToFile(const ParamInfo &params)
         VRDevice cur_dev = params.devices[i];
 
         j[dev_ix]["_name"] = cur_dev.name;
-        j[dev_ix]["_track_pose"] = cur_dev.track_pose;
         j[dev_ix]["_role"] = roleEnumToName(cur_dev.role);
+
+        if (cur_dev.role == VRDevice::DeviceRole::TRACKER) {
+            continue;
+        }
+
+        j[dev_ix]["_track_pose"] = cur_dev.track_pose;
 
         std::map<vr::EVRButtonId, VRButton*>::iterator it = cur_dev.buttons.begin();
         for ( ; it != cur_dev.buttons.end(); it++) {
@@ -588,6 +606,9 @@ int main(int argc, char *argv[])
     ParamInfo params;
     bool default_out_addr;
     bool default_out_port;
+    bool add_trackers;
+    bool customize_trackers;
+    unsigned num_trackers;
 
     auto refresh_in_milli = std::chrono::duration<double, std::milli>(1000 / REFRESH_RATE);
     params.refresh_time = refresh_in_milli.count() * 1000;
@@ -609,25 +630,25 @@ int main(int argc, char *argv[])
         goto shutdown;
 	}
 
-    // TODO: Make this more robust
-    if (argc == 1) {
-        params.out_file = "params.json";
-    }
-    else if (argc == 2) {
-        params.out_file = argv[1];
-    }
-    else {
-        printText("usage: ./updated_params [output_file]");
+    // Check arguments to program
+    if (argc > 3) {
+        printText("usage: ./updated_params [manual] [params_file.json]");
         goto shutdown;
     }
 
-    // -- param auto_setup --
-    query = "Use auto configuration?";
-    help_text =
-        "If true, the tool will automatically check connection to the controllers and\n"
-        "walk you through button configuration. Otherwise, you will be prompted for all\n"
-        "configuration information.";
-    params.auto_setup = promptBool(query, help_text); 
+    params.out_file = "params.json";
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "manual") == 0) {
+            params.auto_setup = false;
+        }
+        else if (strstr(argv[i], ".json")) {
+            params.out_file = argv[i];
+        }
+        else {
+            printText("Invalid argument to program.");
+            goto shutdown;
+        }
+    }
 
     if (params.auto_setup) {
         // -- param bimanual --
@@ -656,18 +677,14 @@ int main(int argc, char *argv[])
         controller.role = params.cur_role;
 
         printText("Configuring buttons...\n", 0);
-        printText("Please press the button you would like to configure first ", 0);
-        printText("(press for " + std::to_string(BUTTON_PRESS_TIME / 1000) + " seconds).", 2);
-        
-        checkButton(params);
-        promptButtonInfo(params, controller);
+        printText("Please press the button you would like to configure first.", 2);        
+        checkButton(params, controller);
 
         query = "Configure another button?";
         help_text =
             "Specify whether more buttons should be configured.";
         while (promptBool(query, help_text)) {
-            checkButton(params);
-            promptButtonInfo(params, controller);
+            checkButton(params, controller);
         }
 
         // -- device name --
@@ -687,13 +704,40 @@ int main(int argc, char *argv[])
 
 
         if (params.system.bimanual) {
+            printText();
+            printText("-- Left Controller Configuration --", 2);
+            params.cur_role = VRDevice::LEFT;
+            checkController(params);
 
+            VRDevice controller;
+            controller.role = params.cur_role;
+
+            printText("Configuring buttons...\n", 0);
+            printText("Please press the button you would like to configure first.", 2);        
+            checkButton(params, controller);
+
+            query = "Configure another button?";
+            help_text =
+                "Specify whether more buttons should be configured.";
+            while (promptBool(query, help_text)) {
+                checkButton(params, controller);
+            }
+
+            // -- device name --
+            query = "Enter a name to identify the left controller.";
+            help_text =
+                "Each controller should have a unique name. This name is intended to\n"
+                "make it easier for users to identify each controller.";
+            controller.name = promptText(query, help_text);
+
+            // -- device track_pose --
+            query = "Should pose be tracked for " + controller.name + "?";
+            help_text =
+                "Indicates whether to return pose data for this device.";
+            controller.track_pose = promptBool(query, help_text);
+
+            params.devices.push_back(controller);
         }    
-
-
-        // TODO: Catch KeyboardInterrupt signal in case users wants to use it
-        // to break out of button loop
-        // Ask whether to dump info then
     }
     else {
         printText("Using manual setup...");
@@ -701,6 +745,46 @@ int main(int argc, char *argv[])
 
     printText();
     printText("-- General Settings Configuration --", 2);
+
+    // -- update param num_devices --
+    query = "Would you like to configure tracker devices?";
+    help_text =
+        "If true, you will be able to configure tracker devices in addition to the\n"
+        "controllers already configured. Tracker devices only return pose data.";
+    add_trackers = promptBool(query, help_text);
+
+    if (add_trackers) {
+        query = "How many trackers should be configured?";
+        help_text =
+            "Enter the number of trackers to configure. Controllers should not be included\n"
+            "in this number.";
+        num_trackers = promptInt(query, help_text);
+
+        query = "Customize tracker names?";
+        help_text =
+            "If true, you will enter a custom name for each tracker. Otherwise, each tracker\n"
+            "will be automatically assigned a name in the format 'tracker#'.";
+        customize_trackers = promptBool(query, help_text);
+
+        for (int i = 0; i < num_trackers; i++) {
+            VRDevice tracker;
+            std::string tracker_name;
+
+            tracker.role = VRDevice::DeviceRole::TRACKER;
+            tracker_name = "tracker" + std::to_string(i);
+            if (customize_trackers) {
+                query = "Enter a name to identify " + tracker_name + ".";
+                help_text =
+                    "The name entered will be used to identify this tracker in the output.";
+                tracker_name = promptText(query, help_text);
+            }
+            tracker.name = tracker_name;
+
+            params.devices.push_back(tracker);
+        }
+
+        params.system.num_devices += num_trackers;
+    }
 
     // -- param update_freq --
     query = "How often should data be updated (in Hz)?";
@@ -757,6 +841,6 @@ shutdown:
         vr::VR_Shutdown();
         params.vrs = NULL;
     }
-	printText("Exiting VR system...");
+	printText("Exiting configuration...");
 	return err_val;
 }

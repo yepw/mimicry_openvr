@@ -2,10 +2,10 @@
 #include <fstream>
 #include <map>
 #include <chrono>
+#include <thread>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <unistd.h>
 
 #include <openvr.h>
 
@@ -80,6 +80,36 @@ std::string roleEnumToName(VRDevice::DeviceRole role) {
 
 
 /**
+ * Print a string to the screen.
+ * 
+ * Params:
+ * 		text - text to print
+ * 		newlines - number of newlines to print at the end of input string
+ * 		flush - whether to flush text. Generally, only needed when
+ * 			printing a large body of text with manual newlines
+ */
+void printText(std::string text="", int newlines=1, bool flush=false)
+{
+    // TODO: Consider adding param for width of text line
+    std::cout << text;
+
+    for (int i = 0; i < newlines; i++) {
+        if (i > 1) {
+            std::cout << "\n";
+        }
+        else {
+            std::cout << std::endl;
+        }
+    }
+
+    if (flush) {
+        std::cout.flush();
+    }
+
+    return;
+}
+
+/**
  * Find a device within the list indicated that matches the given role.
  * It's expected that there is only one controller for each role of left
  * and right, though no validation is performed. For trackers, the first
@@ -88,7 +118,7 @@ std::string roleEnumToName(VRDevice::DeviceRole role) {
  * Params:
  * 		role - role to search for
  * 		from_active - if true, will only search list of active devices.
- * 			Otherwise, only the list of inactive devices is searched.
+ * 			Otherwise, only the list of inactive devices is searched
  * 
  * Returns: Pointer to device if found, NULL otherwise.
  **/
@@ -295,7 +325,7 @@ bool MimicryApp::readParameters(std::string filename) {
 
 	in_file.open(filename);
 	if (!in_file.is_open()) {
-		std::cout << "Unable to open parameter file." << std::endl;
+		printText("Unable to open parameter file.");
 		goto param_exit;
 	}
 
@@ -308,11 +338,15 @@ bool MimicryApp::readParameters(std::string filename) {
 	m_params.update_freq = j["_update_freq"];
 
 	if (m_params.num_devices <= 0 || m_params.num_devices > vr::k_unMaxTrackedDeviceCount) {
-		std::cout << "Invalid number of devices specified." << std::endl;
+		printText("Invalid number of devices specified.");
+		goto param_exit;
+	}
+	if (m_params.num_devices != (j.size() - m_params.NUM_PARAMS)) {
+		printText("The number of devices configured does not match '_num_devices'.");
 		goto param_exit;
 	}
 	if (m_params.bimanual && m_params.num_devices < 2) {
-		std::cout << "At least 2 devices must be specified for bimanual control." << std::endl;
+		printText("At least 2 devices must be specified for bimanual control.");
 		goto param_exit;
 	}
 
@@ -321,11 +355,16 @@ bool MimicryApp::readParameters(std::string filename) {
 		std::string cur_dev = "dev" + std::to_string(i);
 
 		dev->name = j[cur_dev]["_name"];
-		dev->track_pose = j[cur_dev]["_track_pose"];
 		dev->role = roleNameToEnum(j[cur_dev]["_role"]);
 
+		if (dev->role == VRDevice::DeviceRole::TRACKER) {
+			continue;
+		}
+
+		dev->track_pose = j[cur_dev]["_track_pose"];
+
 		if (m_inactive_dev.find(dev->name) != m_inactive_dev.end()) {
-			std::cout << "Duplicate device name specified: " << dev->name << std::endl;
+			printText("Duplicate device name specified: " + dev->name);
 			goto param_exit;
 		}
 
@@ -334,7 +373,7 @@ bool MimicryApp::readParameters(std::string filename) {
 			case VRDevice::DeviceRole::LEFT:
 			{
 				if (m_left_config) {
-					std::cout << "Multiple left controllers specified." << std::endl;
+					printText("Multiple left controllers specified.");
 					goto param_exit;
 				}
 				m_left_config = true;
@@ -343,7 +382,7 @@ bool MimicryApp::readParameters(std::string filename) {
 			case VRDevice::DeviceRole::RIGHT:
 			{
 				if (m_right_config) {
-					std::cout << "Multiple right controllers specified." << std::endl;
+					printText("Multiple right controllers specified.");
 					goto param_exit;
 				}
 				m_right_config = true;
@@ -356,7 +395,7 @@ bool MimicryApp::readParameters(std::string filename) {
 
 			default:
 			{
-				std::cout << "Invalid device role for " << dev->name << std::endl;
+				printText("Invalid device role for " + dev->name);
 				goto param_exit;
 			}
 		}
@@ -366,7 +405,7 @@ bool MimicryApp::readParameters(std::string filename) {
 			std::string but_key = it.key();
 
 			if (VRButton::KEY_TO_ID.find(but_key) == VRButton::KEY_TO_ID.end()) {
-				std::cout << "Invalid button ID: " << but_key << std::endl;
+				printText("Invalid button ID: " + but_key);
 				goto param_exit;
 			}
 
@@ -379,8 +418,7 @@ bool MimicryApp::readParameters(std::string filename) {
 			std::map<ButtonId, VRButton *>::iterator but_it = dev->buttons.begin();
 			for ( ; but_it != dev->buttons.end(); but_it++) {
 				if (but_it->second->name == but->name) {
-					std::cout << "Duplicate button name: " << but->name << " for device " << 
-						dev->name << std::endl;
+					printText("Duplicate button name: " + but->name + " for device " + dev->name);
 					goto param_exit;
 				}
 			}
@@ -391,7 +429,7 @@ bool MimicryApp::readParameters(std::string filename) {
 				std::string cur_type = t_it.key();
 
 				if (cur_type != "boolean" && cur_type != "pressure" && cur_type != "2d") {
-					std::cout << "Invalid button data input type: " << cur_type << std::endl;
+					printText("Invalid button data input type: " + cur_type);
 					goto param_exit;
 				}
 
@@ -405,8 +443,8 @@ bool MimicryApp::readParameters(std::string filename) {
 	}
 
 	if (m_params.bimanual && (!m_left_config || !m_right_config)) {
-		std::cout << "Bimanual mode was specified, but left and right controllers are not\n";
-		std::cout << "both configured." << std::endl;
+		printText("Bimanual mode was specified, but left and right controllers are not\n", 0);
+		printText("both configured.");
 		goto param_exit;
 	}
 
@@ -433,6 +471,8 @@ void MimicryApp::runMainLoop(std::string params_file)
 	auto start = std::chrono::high_resolution_clock::now();
 	auto end = std::chrono::high_resolution_clock::now();
 
+	printText("Initializing mimicry_control...");
+
 	// Load the SteamVR Runtime
 	m_vrs = vr::VR_Init(&vr_err, vr::VRApplication_Background);
 	// NOTE: VRApplication_Background requires an SteamVR instance to already be running.
@@ -440,8 +480,8 @@ void MimicryApp::runMainLoop(std::string params_file)
 	// case for me.
 
     if (vr_err != vr::VRInitError_None){
-		std::cout << "Unable to init VR runtime: " << 
-			vr::VR_GetVRInitErrorAsEnglishDescription(vr_err) << std::endl;
+		printText("Unable to init VR runtime: ", 0);
+		printText(vr::VR_GetVRInitErrorAsEnglishDescription(vr_err));
         goto shutdown;
 	}
 
@@ -453,7 +493,8 @@ void MimicryApp::runMainLoop(std::string params_file)
 	while (m_running) {
 		std::chrono::duration<double, std::milli> time_elapsed = end - start;
 		std::chrono::duration<double, std::milli> delta = this->m_refresh_time - time_elapsed;
-		usleep(fmax(0, delta.count()) * 1000);
+		// TODO: Do something to deal with negative values?
+		std::this_thread::sleep_for(delta);
 
 		start = std::chrono::high_resolution_clock::now();
 		handleInput();
@@ -466,7 +507,7 @@ shutdown:
         vr::VR_Shutdown();
         m_vrs = NULL;
     }
-	std::cout << "Exiting VR system..." << std::endl;
+	printText("Exiting VR system...");
 	return;
 }
 
@@ -490,7 +531,7 @@ bool MimicryApp::appInit(std::string filename)
 	sockaddr_in address;
 
 	if ((m_socket = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
-		std::cout << "Could not initialize socket." << std::endl;
+		printText("Could not initialize socket.");
 		return false;
 	}
 
@@ -503,15 +544,16 @@ bool MimicryApp::appInit(std::string filename)
 	else {
 		if(inet_pton(AF_INET, m_params.out_addr.c_str(), &address.sin_addr) <= 0)  
     	{ 
-			std::cout << "Invalid address specified." << std::endl; 
+			printText("Invalid address specified."); 
 			return false; 
     	} 
 	}
    
     if (connect(m_socket, (struct sockaddr *)&address, sizeof(address)) < 0) 
     { 
-        std::cout << "Socket connection failed." << std::endl;
-		std::cout << "Error: " << strerror(errno) << std::endl;
+		std::string err_str = strerror(errno);
+        printText("Socket connection failed.");
+		printText("Error: " + err_str);
         return false; 
     } 
 
@@ -631,12 +673,12 @@ void MimicryApp::postOutputData()
 	json j;
 
 	if (m_params.bimanual && (!m_left_found || !m_right_found)) {
-		std::cout << "No data published due to missing devices." << std::endl;
+		printText("No data published due to missing devices.");
 		return;
 	}
 
 	if (m_devices.size() == 0) {
-		std::cout << "No devices are currently active." << std::endl;
+		printText("No devices are currently active.");
 		return;
 	}
 
@@ -655,6 +697,10 @@ void MimicryApp::postOutputData()
 		j[dev->name]["pose"]["orientation"]["y"] = dev_pose.quat.y;
 		j[dev->name]["pose"]["orientation"]["z"] = dev_pose.quat.z;
 		j[dev->name]["pose"]["orientation"]["w"] = dev_pose.quat.w;
+
+		if (dev->role == VRDevice::DeviceRole::TRACKER) {
+			continue;
+		}
 
 		std::map<ButtonId, VRButton *>::iterator b_it = dev->buttons.begin();
 		for ( ; b_it != dev->buttons.end(); b_it++) {
@@ -683,5 +729,5 @@ void MimicryApp::postOutputData()
 	
 	std::string output = j.dump(3);
 	send(m_socket, output.c_str(), output.size(), 0);
-	std::cout << output << std::endl;
+	printText(output);
 }

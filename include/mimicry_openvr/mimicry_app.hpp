@@ -101,6 +101,8 @@ struct VRParams
 	std::string out_addr;
 	unsigned out_port;
 	unsigned update_freq;
+
+	const unsigned NUM_PARAMS = 5;
 };
 
 class MimicryApp
@@ -119,9 +121,7 @@ public:
 	std::map<DevIx, VRDevice *> m_devices;
 	
 	MimicryApp() : m_running(false), m_left_config(false), m_right_config(false),
-			m_left_found(false), m_right_found(false), m_socket(0) {
-		m_params = {};
-		};
+			m_left_found(false), m_right_found(false), m_socket(0) {};
 
 	void runMainLoop(std::string params_file);
 
@@ -140,5 +140,11 @@ private:
 	
 	void postOutputData();
 };
+
+void printText(std::string text, int newlines, bool flush);
+void handleButtonByProp(VRButton *button, vr::VRControllerAxis_t axis, int prop);
+Vec3D getPositionFromPose(vr::HmdMatrix34_t matrix);
+Quaternion getOrientationFromPose(vr::HmdMatrix34_t matrix);
+
 
 #endif // __MIMICRY_APP_HPP__

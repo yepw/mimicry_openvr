@@ -1,16 +1,16 @@
 {
     "_bimanual": true,
-    "_num_devices": 2,
+    "_num_devices": 4,
     "_out_addr": "",
     "_out_port": 8080,
-    "_update_freq": 30,
+    "_update_freq": 60,
     "dev0": {
-        "_name": "vive0",
+        "_name": "right_vive",
+        "_role": "right",
         "_track_pose": true,
-        "_role": "left",
         "buttons": {
             "APP_MENU": {
-                "name": "vive0_menu",
+                "name": "app_menu",
                 "types": {
                     "2d": false,
                     "boolean": true,
@@ -18,7 +18,7 @@
                 }
             },
             "AXIS0": {
-                "name": "vive0_trackpad",
+                "name": "trackpad",
                 "types": {
                     "2d": true,
                     "boolean": true,
@@ -26,7 +26,7 @@
                 }
             },
             "AXIS1": {
-                "name": "vive0_trigger",
+                "name": "trigger",
                 "types": {
                     "2d": false,
                     "boolean": true,
@@ -34,7 +34,7 @@
                 }
             },
             "GRIP": {
-                "name": "vive0_gripper",
+                "name": "gripper",
                 "types": {
                     "2d": false,
                     "boolean": true,
@@ -44,12 +44,12 @@
         }
     },
     "dev1": {
-        "_name": "vive1",
+        "_name": "left_vive",
+        "_role": "left",
         "_track_pose": true,
-        "_role": "right",
         "buttons": {
             "APP_MENU": {
-                "name": "vive1_menu",
+                "name": "app_menu",
                 "types": {
                     "2d": false,
                     "boolean": true,
@@ -57,15 +57,15 @@
                 }
             },
             "AXIS0": {
-                "name": "vive1_trackpad",
+                "name": "trackpad",
                 "types": {
                     "2d": true,
                     "boolean": true,
                     "pressure": false
                 }
             },
-            "AXIS1":{
-                "name": "vive1_trigger",
+            "AXIS1": {
+                "name": "trigger",
                 "types": {
                     "2d": false,
                     "boolean": true,
@@ -73,7 +73,7 @@
                 }
             },
             "GRIP": {
-                "name": "vive1_gripper",
+                "name": "gripper",
                 "types": {
                     "2d": false,
                     "boolean": true,
@@ -81,5 +81,13 @@
                 }
             }
         }
+    },
+    "dev2": {
+        "_name": "tracker0",
+        "_role": "tracker"
+    },
+    "dev3": {
+        "_name": "tracker1",
+        "_role": "tracker"
     }
 }

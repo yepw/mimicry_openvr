@@ -1,0 +1,46 @@
+{
+    "_bimanual": false,
+    "_num_devices": 1,
+    "_out_addr": "",
+    "_out_port": 8080,
+    "_update_freq": 60,
+    "dev0": {
+        "_name": "vive",
+        "_role": "right",
+        "_track_pose": true,
+        "buttons": {
+            "APP_MENU": {
+                "name": "menu",
+                "types": {
+                    "2d": false,
+                    "boolean": true,
+                    "pressure": false
+                }
+            },
+            "AXIS0": {
+                "name": "trackpad",
+                "types": {
+                    "2d": true,
+                    "boolean": true,
+                    "pressure": false
+                }
+            },
+            "AXIS1": {
+                "name": "trigger",
+                "types": {
+                    "2d": false,
+                    "boolean": true,
+                    "pressure": true
+                }
+            },
+            "GRIP": {
+                "name": "gripper",
+                "types": {
+                    "2d": false,
+                    "boolean": true,
+                    "pressure": false
+                }
+            }
+        }
+    }
+}

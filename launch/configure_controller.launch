@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+   <arg name="params_file"    default="vive_params.json" />
+
+   <node pkg="mimicry_openvr" type="updated_params" name="controller_config"
+         args="$(arg params_file)" output="screen" cwd="node"/>
+</launch>

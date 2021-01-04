@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <map>
 
+#include <ros/ros.h>
+
 #include "mimicry_openvr/json.hpp"
 #include "mimicry_openvr/mimicry_app.hpp"
 #include "mimicry_openvr/updated_params.hpp"
@@ -589,6 +591,8 @@ void writeToFile(const ParamInfo &params)
         }
     }
 
+    chdir("../../../src/mimicry_openvr/param_files");
+
     std::ofstream out_file;
     out_file.open(params.out_file);
     out_file << j.dump(4) << std::endl;
@@ -629,6 +633,10 @@ int main(int argc, char *argv[])
 		printText(err_str, 1);
         goto shutdown;
 	}
+
+    // Initialize ROS
+    ros::init(argc, argv, "controller_config");
+
 
     // Check arguments to program
     if (argc > 3) {

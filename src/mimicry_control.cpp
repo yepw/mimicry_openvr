@@ -1,4 +1,5 @@
 #include <iostream>
+#include <unistd.h>
 
 #include "mimicry_openvr/json.hpp"
 #include "mimicry_openvr/mimicry_app.hpp"
@@ -18,6 +19,7 @@ int main(int argc, char* argv[])
 {
 	MimicryApp app = MimicryApp();
 	
+	chdir("../../../src/mimicry_openvr");
 
-	app.runMainLoop("../param_files/params.json");
+	app.runMainLoop("param_files/vive_params.json");
 }

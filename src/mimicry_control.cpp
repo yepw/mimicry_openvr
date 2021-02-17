@@ -9,7 +9,6 @@ using json = nlohmann::json;
 
 
 // TODO: Get parameters for:
-// - Parameter file location
 // - Verbose output?
 // - Allow output for non-bimanual mode regardless of controller role
 // - Specifying refresh rate of 0 should indicate as fast as possible
@@ -21,5 +20,18 @@ int main(int argc, char* argv[])
 	
 	chdir("../../../src/mimicry_openvr");
 
-	app.runMainLoop("param_files/vive_params.json");
+	std::string config_file;
+	for (int i(0); i < argc; ++i) {
+		std::string cur_arg(argv[i]);
+		if (cur_arg.find(".json") != std::string::npos) {
+			config_file = "param_files/" + cur_arg;
+			break;
+		}
+	}
+
+	if (config_file.empty()) {
+		printf("No config_file was selected.\n");
+	}
+
+	app.runMainLoop(config_file);
 }

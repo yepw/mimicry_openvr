@@ -319,7 +319,7 @@ Quaternion getOrientationFromPose(vr::HmdMatrix34_t matrix)
 bool MimicryApp::readParameters(std::string filename) {
 	json j;
 	std::ifstream in_file;
-	bool configured = false;
+	bool configured(false);
 
 	in_file.open(filename);
 	if (!in_file.is_open()) {
@@ -349,8 +349,8 @@ bool MimicryApp::readParameters(std::string filename) {
 	}
 
 	for (int i = 0; i < m_params.num_devices; i++) {
-		VRDevice *dev = new VRDevice();
-		std::string cur_dev = "dev" + std::to_string(i);
+		VRDevice *dev(new VRDevice());
+		std::string cur_dev("dev" + std::to_string(i));
 
 		dev->name = j[cur_dev]["_name"];
 		dev->role = roleNameToEnum(j[cur_dev]["_role"]);
@@ -398,9 +398,9 @@ bool MimicryApp::readParameters(std::string filename) {
 			}
 		}
 
-		json::iterator it = j[cur_dev]["buttons"].begin();
+		json::iterator it(j[cur_dev]["buttons"].begin());
 		for ( ; it != j[cur_dev]["buttons"].end(); it++) {
-			std::string but_key = it.key();
+			std::string but_key(it.key());
 
 			if (VRButton::KEY_TO_ID.find(but_key) == VRButton::KEY_TO_ID.end()) {
 				printText("Invalid button ID: " + but_key);
@@ -408,7 +408,7 @@ bool MimicryApp::readParameters(std::string filename) {
 			}
 
 			vr::EVRButtonId cur_but = VRButton::KEY_TO_ID.at(but_key);
-			VRButton *but = new VRButton();
+			VRButton *but(new VRButton());
 			but->id = cur_but;
 
 			but->name = j[cur_dev]["buttons"][but_key]["name"];
@@ -421,10 +421,10 @@ bool MimicryApp::readParameters(std::string filename) {
 				}
 			}
 
-			json::iterator t_it = j[cur_dev]["buttons"][but_key]["types"].begin();
-			json::iterator t_it_end = j[cur_dev]["buttons"][but_key]["types"].end();
+			json::iterator t_it(j[cur_dev]["buttons"][but_key]["types"].begin());
+			json::iterator t_it_end(j[cur_dev]["buttons"][but_key]["types"].end());
 			for ( ; t_it != t_it_end; t_it++) {
-				std::string cur_type = t_it.key();
+				std::string cur_type(t_it.key());
 
 				if (cur_type != "boolean" && cur_type != "pressure" && cur_type != "2d") {
 					printText("Invalid button data input type: " + cur_type);

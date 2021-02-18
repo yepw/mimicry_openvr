@@ -15,7 +15,7 @@
 
 using json = nlohmann::json;
 typedef vr::TrackedDeviceIndex_t DevIx;
-typedef vr::VRControllerState_t DevState;
+typedef vr::VRControllerState_t DeviceState;
 typedef vr::EVRButtonId ButtonId;
 
 
@@ -124,26 +124,24 @@ void printText(std::string text="", int newlines=1, bool flush=false)
  **/
 VRDevice * MimicryApp::findDevFromRole(VRDevice::DeviceRole role, bool from_active)
 {
-	VRDevice *controller = NULL;
-
 	if (from_active) {
-		std::map<DevIx, VRDevice *>::iterator it = m_devices.begin();
-		for ( ; it != m_devices.end(); it++) {
+		std::map<DevIx, VRDevice *>::iterator it(m_devices.begin());
+		for ( ; it != m_devices.end(); ++it) {
 			if (it->second->role == role) {
 				return it->second;
 			}
 		}
 	}
 	else {
-		std::map<std::string, VRDevice *>::iterator it = m_inactive_dev.begin();
-		for ( ; it != m_inactive_dev.end(); it++) {
+		std::map<std::string, VRDevice *>::iterator it(m_inactive_dev.begin());
+		for ( ; it != m_inactive_dev.end(); ++it) {
 			if (it->second->role == role) {
 				return it->second;
 			}
 		}
 	}
 
-	return controller;
+	return NULL;
 }
 
 /**
@@ -185,18 +183,18 @@ void MimicryApp::addDeviceToIndex(VRDevice *dev, DevIx ix) {
 VRDevice * MimicryApp::activateDevice(DevIx ix) 
 {
 	VRDevice *dev = NULL;
-	vr::ETrackedDeviceClass dev_class = m_vrs->GetTrackedDeviceClass(ix);
+	vr::ETrackedDeviceClass dev_class(m_vrs->GetTrackedDeviceClass(ix));
 
 	if (dev_class = vr::ETrackedDeviceClass::TrackedDeviceClass_Controller) {
-		vr::ETrackedControllerRole role = m_vrs->GetControllerRoleForTrackedDeviceIndex(ix);
+		vr::ETrackedControllerRole role(m_vrs->GetControllerRoleForTrackedDeviceIndex(ix));
 		
 		if (role == vr::TrackedControllerRole_LeftHand) {
-			VRDevice *left_contr = findDevFromRole(VRDevice::DeviceRole::LEFT, false);
+			VRDevice *left_contr(findDevFromRole(VRDevice::DeviceRole::LEFT, false));
 			addDeviceToIndex(left_contr, ix);
 			dev = left_contr;
 		}
 		else if (role == vr::TrackedControllerRole_RightHand) {
-			VRDevice *right_contr = findDevFromRole(VRDevice::DeviceRole::RIGHT, false);
+			VRDevice *right_contr(findDevFromRole(VRDevice::DeviceRole::RIGHT, false));
 			addDeviceToIndex(right_contr, ix);
 			dev = right_contr;
 		}
@@ -205,7 +203,7 @@ VRDevice * MimicryApp::activateDevice(DevIx ix)
 		}
 	}
 	else if (dev_class == vr::ETrackedDeviceClass::TrackedDeviceClass_GenericTracker) {
-		VRDevice *tracker = findDevFromRole(VRDevice::DeviceRole::TRACKER, false);
+		VRDevice *tracker(findDevFromRole(VRDevice::DeviceRole::TRACKER, false));
 		addDeviceToIndex(tracker, ix);
 		dev = tracker;
 	}
@@ -222,7 +220,7 @@ VRDevice * MimicryApp::activateDevice(DevIx ix)
 void MimicryApp::deactivateDevice(DevIx ix)
 {
 	if (m_devices.find(ix) != m_devices.end()) {
-		VRDevice *dev = m_devices[ix];
+		VRDevice *dev(m_devices[ix]);
 
 		if (dev->role == VRDevice::DeviceRole::LEFT) {
 			m_left_found = false;
@@ -460,58 +458,6 @@ param_exit:
 
 
 /**
- * Entry point for the mimicry_control application.
- * 
- * Params:
- * 		params_file - name of the parameter file
- **/
-void MimicryApp::runMainLoop(std::string params_file)
-{
-	vr::EVRInitError vr_err = vr::VRInitError_None;
-	auto start = std::chrono::high_resolution_clock::now();
-	auto end = std::chrono::high_resolution_clock::now();
-
-	printText("Initializing mimicry_control...");
-
-	// Load the SteamVR Runtime
-	m_vrs = vr::VR_Init(&vr_err, vr::VRApplication_Background);
-	// NOTE: VRApplication_Background requires an SteamVR instance to already be running.
-	// In theory, the other modes will automatically launch SteamVR, but that was not the
-	// case for me.
-
-    if (vr_err != vr::VRInitError_None){
-		printText("Unable to init VR runtime: ", 0);
-		printText(vr::VR_GetVRInitErrorAsEnglishDescription(vr_err));
-        goto shutdown;
-	}
-
-	if (!appInit(params_file)) {
-		goto shutdown;
-	}
-
-	m_running = true;
-	while (m_running) {
-		std::chrono::duration<double, std::milli> time_elapsed = end - start;
-		std::chrono::duration<double, std::milli> delta = this->m_refresh_time - time_elapsed;
-		// TODO: Do something to deal with negative values?
-		std::this_thread::sleep_for(delta);
-
-		start = std::chrono::high_resolution_clock::now();
-		handleInput();
-		postOutputData();
-		end = std::chrono::high_resolution_clock::now();
-	}
-
-shutdown:
-    if (m_vrs != NULL) {
-        vr::VR_Shutdown();
-        m_vrs = NULL;
-    }
-	printText("Exiting VR system...");
-	return;
-}
-
-/**
  * Perform initialization steps for the mimicry_control app.
  * 
  * Params:
@@ -569,19 +515,19 @@ bool MimicryApp::appInit(std::string filename)
  **/
 void MimicryApp::handleInput()
 {
-	// Deactivate all devices and reactivate them if still connected
-	std::map<DevIx, VRDevice *>::iterator it = m_devices.begin();
-	for ( ; it != m_devices.end(); it++) {
+	// Mark all devices as deactivated and reactivate them if still connected
+	std::map<DevIx, VRDevice *>::iterator it(m_devices.begin());
+	for ( ; it != m_devices.end(); ++it) {
 		deactivateDevice(it->first);
 	}
 
-	for (unsigned ix = 0; ix < vr::k_unMaxTrackedDeviceCount; ix++) {
+	for (unsigned ix = 0; ix < vr::k_unMaxTrackedDeviceCount; ++ix) {
 		if (!m_vrs->IsTrackedDeviceConnected(ix)) {
 			continue;
 		}
 
 		vr::TrackedDevicePose_t dev_pose;
-		DevState dev_state;
+		DeviceState dev_state;
 		m_vrs->GetControllerStateWithPose(vr::TrackingUniverseStanding, ix, &dev_state, 
 			sizeof(dev_state), &dev_pose);
 
@@ -596,13 +542,13 @@ void MimicryApp::handleInput()
 
 		// Exclude trackers from button handling
 		if (dev->role == VRDevice::DeviceRole::LEFT || dev->role == VRDevice::DeviceRole::RIGHT) {
-			std::map<ButtonId, VRButton *>::iterator it = dev->buttons.begin();
-			for ( ; it != dev->buttons.end(); it++) {
-				VRButton *button = it->second;
+			std::map<ButtonId, VRButton *>::iterator it(dev->buttons.begin());
+			for ( ; it != dev->buttons.end(); ++it) {
+				VRButton *button(it->second);
 					
-				ButtonId id = ButtonId(it->first);
+				ButtonId id(it->first);
 				// NOTE: OpenVR has built-in pressure thresholds to identify a button as pressed
-				bool pressed = (vr::ButtonMaskFromId(id) & dev_state.ulButtonPressed) != 0;
+				bool pressed((vr::ButtonMaskFromId(id) & dev_state.ulButtonPressed) != 0);
 
 				switch (id)
 				{
@@ -619,40 +565,40 @@ void MimicryApp::handleInput()
 					case vr::k_EButton_Axis0:
 					{
 						button->pressed = pressed;
-						int prop = m_vrs->GetInt32TrackedDeviceProperty(ix, 
-							(vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + 0));
+						int prop(m_vrs->GetInt32TrackedDeviceProperty(ix, 
+							(vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + 0)));
 						handleButtonByProp(button, dev_state.rAxis[0], prop);
 					}	break;
 
 					case vr::k_EButton_Axis1:
 					{
 						button->pressed = pressed;
-						int prop = m_vrs->GetInt32TrackedDeviceProperty(ix, 
-							(vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + 1));
+						int prop(m_vrs->GetInt32TrackedDeviceProperty(ix, 
+							(vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + 1)));
 						handleButtonByProp(button, dev_state.rAxis[1], prop);
 					}	break;
 
 					case vr::k_EButton_Axis2:
 					{
 						button->pressed = pressed;
-						int prop = m_vrs->GetInt32TrackedDeviceProperty(ix, 
-							(vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + 2));
+						int prop(m_vrs->GetInt32TrackedDeviceProperty(ix, 
+							(vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + 2)));
 						handleButtonByProp(button, dev_state.rAxis[2], prop);
 					}	break;
 
 					case vr::k_EButton_Axis3:
 					{
 						button->pressed = pressed;
-						int prop = m_vrs->GetInt32TrackedDeviceProperty(ix, 
-							(vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + 3));
+						int prop(m_vrs->GetInt32TrackedDeviceProperty(ix, 
+							(vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + 3)));
 						handleButtonByProp(button, dev_state.rAxis[3], prop);
 					}	break;
 
 					case vr::k_EButton_Axis4:
 					{
 						button->pressed = pressed;
-						int prop = m_vrs->GetInt32TrackedDeviceProperty(ix, 
-							(vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + 4));
+						int prop(m_vrs->GetInt32TrackedDeviceProperty(ix, 
+							(vr::ETrackedDeviceProperty)(vr::Prop_Axis0Type_Int32 + 4)));
 						handleButtonByProp(button, dev_state.rAxis[4], prop);
 					}	break;
 
@@ -682,11 +628,11 @@ void MimicryApp::postOutputData()
 		return;
 	}
 
-	std::map<DevIx, VRDevice *>::iterator it = m_devices.begin();
-	for ( ; it != m_devices.end(); it++) {
-		VRDevice *dev = it->second;
+	std::map<DevIx, VRDevice *>::iterator it(m_devices.begin());
+	for ( ; it != m_devices.end(); ++it) {
+		VRDevice *dev(it->second);
 		
-		j[dev->name]["role"] = roleEnumToName(dev->role);
+		j[dev->name]["_role"] = roleEnumToName(dev->role);
 
 		VRPose dev_pose = dev->pose;
 		j[dev->name]["pose"]["position"]["x"] = dev_pose.pos.x;
@@ -702,14 +648,14 @@ void MimicryApp::postOutputData()
 			continue;
 		}
 
-		std::map<ButtonId, VRButton *>::iterator b_it = dev->buttons.begin();
-		for ( ; b_it != dev->buttons.end(); b_it++) {
-			VRButton *button = b_it->second;
+		std::map<ButtonId, VRButton *>::iterator b_it(dev->buttons.begin());
+		for ( ; b_it != dev->buttons.end(); ++b_it) {
+			VRButton *button(b_it->second);
 
-			std::map<std::string, bool>::iterator t_it = button->val_types.begin();
-			for ( ; t_it != button->val_types.end(); t_it++) {
-				std::string type = t_it->first;
-				bool enabled = t_it->second;
+			std::map<std::string, bool>::iterator t_it(button->val_types.begin());
+			for ( ; t_it != button->val_types.end(); ++t_it) {
+				std::string type(t_it->first);
+				bool enabled(t_it->second);
 
 				if (enabled) {
 					if (type == "boolean") {
@@ -727,7 +673,59 @@ void MimicryApp::postOutputData()
 		}
 	}
 	
-	std::string output = j.dump(3);
+	std::string output(j.dump(3));
 	send(m_socket, output.c_str(), output.size(), 0);
 	printText(output);
+}
+
+/**
+ * Entry point for the mimicry_control application.
+ * 
+ * Params:
+ * 		params_file - name of the parameter file
+ **/
+void MimicryApp::runMainLoop(std::string params_file)
+{
+	vr::EVRInitError vr_err(vr::VRInitError_None);
+	auto start(std::chrono::high_resolution_clock::now());
+	auto end(std::chrono::high_resolution_clock::now());
+
+	printText("Initializing mimicry_control...");
+
+	// Load the SteamVR Runtime
+	m_vrs = vr::VR_Init(&vr_err, vr::VRApplication_Background);
+	// NOTE: VRApplication_Background requires an SteamVR instance to already be running.
+	// In theory, the other modes will automatically launch SteamVR, but that was not the
+	// case for me.
+
+    if (vr_err != vr::VRInitError_None) {
+		printText("Unable to init VR runtime: ", 0);
+		printText(vr::VR_GetVRInitErrorAsEnglishDescription(vr_err));
+        goto shutdown;
+	}
+
+	if (!appInit(params_file)) {
+		goto shutdown;
+	}
+
+	m_running = true;
+	while (m_running) {
+		std::chrono::duration<double, std::milli> time_elapsed = end - start;
+		std::chrono::duration<double, std::milli> delta = this->m_refresh_time - time_elapsed;
+		// TODO: Do something to deal with negative values?
+		std::this_thread::sleep_for(delta);
+
+		start = std::chrono::high_resolution_clock::now();
+		handleInput();
+		postOutputData();
+		end = std::chrono::high_resolution_clock::now();
+	}
+
+shutdown:
+    if (m_vrs != NULL) {
+        vr::VR_Shutdown();
+        m_vrs = NULL;
+    }
+	printText("Exiting VR system...");
+	return;
 }

@@ -10,9 +10,9 @@ using json = nlohmann::json;
 
 // TODO: Get parameters for:
 // - Verbose output?
-// - Allow output for non-bimanual mode regardless of controller role
 // - Specifying refresh rate of 0 should indicate as fast as possible
 // - Add tracker configuration
+// - Switch to glm vectors
 
 int main(int argc, char* argv[]) 
 {

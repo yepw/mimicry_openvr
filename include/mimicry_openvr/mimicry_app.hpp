@@ -99,7 +99,7 @@ struct VRParams
 	unsigned num_devices;
 	bool bimanual;
 	std::string out_addr;
-	unsigned out_port;
+	unsigned out_port, vibration_port;
 	unsigned update_freq;
 
 	const unsigned NUM_PARAMS = 5;

@@ -333,6 +333,7 @@ bool MimicryApp::readParameters(std::string filename) {
 	m_params.num_devices = j["_num_devices"];
 	m_params.out_addr = j["_out_addr"];
 	m_params.out_port = j["_out_port"];
+	m_params.vibration_port = j["_vibr_port"];
 	m_params.update_freq = j["_update_freq"];
 
 	if (m_params.num_devices <= 0 || m_params.num_devices > vr::k_unMaxTrackedDeviceCount) {

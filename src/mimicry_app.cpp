@@ -3,6 +3,7 @@
 #include <map>
 #include <chrono>
 #include <thread>
+#include <signal.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -319,7 +320,6 @@ Quaternion getOrientationFromPose(vr::HmdMatrix34_t matrix)
 bool MimicryApp::readParameters(std::string filename) {
 	json j;
 	std::ifstream in_file;
-	bool configured(false);
 
 	in_file.open(filename);
 	if (!in_file.is_open()) {
@@ -348,7 +348,7 @@ bool MimicryApp::readParameters(std::string filename) {
 		goto param_exit;
 	}
 
-	for (int i = 0; i < m_params.num_devices; i++) {
+	for (int i = 0; i < m_params.num_devices; ++i) {
 		VRDevice *dev(new VRDevice());
 		std::string cur_dev("dev" + std::to_string(i));
 
@@ -399,7 +399,7 @@ bool MimicryApp::readParameters(std::string filename) {
 		}
 
 		json::iterator it(j[cur_dev]["buttons"].begin());
-		for ( ; it != j[cur_dev]["buttons"].end(); it++) {
+		for ( ; it != j[cur_dev]["buttons"].end(); ++it) {
 			std::string but_key(it.key());
 
 			if (VRButton::KEY_TO_ID.find(but_key) == VRButton::KEY_TO_ID.end()) {
@@ -414,7 +414,7 @@ bool MimicryApp::readParameters(std::string filename) {
 			but->name = j[cur_dev]["buttons"][but_key]["name"];
 			
 			std::map<ButtonId, VRButton *>::iterator but_it = dev->buttons.begin();
-			for ( ; but_it != dev->buttons.end(); but_it++) {
+			for ( ; but_it != dev->buttons.end(); ++but_it) {
 				if (but_it->second->name == but->name) {
 					printText("Duplicate button name: " + but->name + " for device " + dev->name);
 					goto param_exit;
@@ -423,7 +423,7 @@ bool MimicryApp::readParameters(std::string filename) {
 
 			json::iterator t_it(j[cur_dev]["buttons"][but_key]["types"].begin());
 			json::iterator t_it_end(j[cur_dev]["buttons"][but_key]["types"].end());
-			for ( ; t_it != t_it_end; t_it++) {
+			for ( ; t_it != t_it_end; ++t_it) {
 				std::string cur_type(t_it.key());
 
 				if (cur_type != "boolean" && cur_type != "pressure" && cur_type != "2d") {
@@ -446,13 +446,13 @@ bool MimicryApp::readParameters(std::string filename) {
 		goto param_exit;
 	}
 
-	configured = true;
+	m_configured = true;
 
 param_exit:
 	if (in_file.is_open()) {
 		in_file.close();
 	}
-	return configured;
+	return m_configured;
 }
 
 
@@ -470,8 +470,6 @@ bool MimicryApp::appInit(std::string filename)
 	if (!readParameters(filename)) {
 		return false;
 	}
-
-	// TODO: Add input socket for vibration and quitting
 
 	int opt = 1;
 	sockaddr_in address;
@@ -648,6 +646,11 @@ void MimicryApp::postOutputData()
 			continue;
 		}
 
+		// if (dev->role == VRDevice::DeviceRole::RIGHT) {
+		// 	DevIx ix(it->first);
+		// 	m_vrs->TriggerHapticPulse(ix, ButtonId::k_EButton_SteamVR_Touchpad, 1000);
+		// }
+
 		std::map<ButtonId, VRButton *>::iterator b_it(dev->buttons.begin());
 		for ( ; b_it != dev->buttons.end(); ++b_it) {
 			VRButton *button(b_it->second);
@@ -678,6 +681,19 @@ void MimicryApp::postOutputData()
 	printText(output);
 }
 
+void MimicryApp::handleVibration()
+{
+	while (!m_configured && m_running) {} // Wait for configuration
+	
+}
+
+void MimicryApp::handleSigint(int sig)
+{
+	MimicryApp::m_running = false;
+}
+
+bool MimicryApp::m_running = false;
+
 /**
  * Entry point for the mimicry_control application.
  * 
@@ -698,6 +714,9 @@ void MimicryApp::runMainLoop(std::string params_file)
 	// In theory, the other modes will automatically launch SteamVR, but that was not the
 	// case for me.
 
+	MimicryApp::m_running = true;
+	std::thread handle_vibration(&MimicryApp::handleVibration, this);
+
     if (vr_err != vr::VRInitError_None) {
 		printText("Unable to init VR runtime: ", 0);
 		printText(vr::VR_GetVRInitErrorAsEnglishDescription(vr_err));
@@ -708,8 +727,9 @@ void MimicryApp::runMainLoop(std::string params_file)
 		goto shutdown;
 	}
 
-	m_running = true;
-	while (m_running) {
+	signal(SIGINT, MimicryApp::handleSigint);
+
+	while (MimicryApp::m_running) {
 		std::chrono::duration<double, std::milli> time_elapsed = end - start;
 		std::chrono::duration<double, std::milli> delta = this->m_refresh_time - time_elapsed;
 		// TODO: Do something to deal with negative values?
@@ -722,6 +742,9 @@ void MimicryApp::runMainLoop(std::string params_file)
 	}
 
 shutdown:
+	MimicryApp::m_running = false;
+	handle_vibration.join();
+
     if (m_vrs != NULL) {
         vr::VR_Shutdown();
         m_vrs = NULL;

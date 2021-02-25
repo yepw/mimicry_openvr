@@ -108,8 +108,16 @@ struct VRParams
 class MimicryApp
 {
 public:
-	bool m_running;
+	static bool m_running;
+	
+	MimicryApp() : m_configured(false), m_left_config(false), m_right_config(false),
+			m_left_found(false), m_right_found(false), m_socket(0) {};
+
+	void runMainLoop(std::string params_file);
+
+private:
 	vr::IVRSystem *m_vrs;
+	bool m_configured;
 	bool m_left_found;
 	bool m_right_found;
 
@@ -119,14 +127,10 @@ public:
 	VRParams m_params;
 	std::map<std::string, VRDevice *> m_inactive_dev;
 	std::map<DevIx, VRDevice *> m_devices;
-	
-	MimicryApp() : m_running(false), m_left_config(false), m_right_config(false),
-			m_left_found(false), m_right_found(false), m_socket(0) {};
 
-	void runMainLoop(std::string params_file);
-
-private:
 	std::chrono::duration<double, std::milli> m_refresh_time;
+
+	static void handleSigint(int sig);
 
 	void addDeviceToIndex(VRDevice *dev, DevIx ix);
 	VRDevice * findDevFromRole(VRDevice::DeviceRole role, bool from_active);
@@ -137,6 +141,7 @@ private:
 	bool readParameters(std::string filename);
 	void handleInput();
 	bool processEvent(const vr::VREvent_t &event);
+	void handleVibration();
 	
 	void postOutputData();
 };

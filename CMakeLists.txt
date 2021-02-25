@@ -71,4 +71,5 @@ target_link_libraries(mimicry_app
 
 target_link_libraries(mimicry_control
   mimicry_app
+  ${catkin_LIBRARIES}
 )

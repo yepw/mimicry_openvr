@@ -6,6 +6,10 @@
 #include <chrono>
 #include <sys/socket.h>
 
+#include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
+
 #include <openvr.h>
 
 
@@ -13,56 +17,10 @@ typedef vr::TrackedDeviceIndex_t DevIx;
 typedef vr::VRControllerState_t DevState;
 typedef vr::EVRButtonId ButtonId;
 
-struct Vec2D
-{
-	union 
-	{
-		struct 
-		{
-			float x, y;
-		};
-		float vec[2];
-	};
-
-	Vec2D() : x(0), y(0) {}
-	Vec2D(float x_val, float y_val) : x(x_val), y(y_val) {}
-};
-
-struct Vec3D
-{
-	union 
-	{
-		struct 
-		{
-			float x, y, z;
-		};
-		float vec[3];
-	};
-
-	Vec3D() : x(0), y(0), z(0) {}
-	Vec3D(float x_val, float y_val, float z_val) : x(x_val), y(y_val), z(z_val) {}
-};
-
-struct Quaternion
-{
-	union 
-	{
-		struct 
-		{
-			float x, y, z, w;
-		};
-		float vec[4];
-	};
-
-	Quaternion() : x(0), y(0), z(0), w(0) {}
-	Quaternion(float x_val, float y_val, float z_val, float w_val) : x(x_val), y(y_val), 
-		z(z_val), w(w_val) {}
-};
-
 struct VRPose
 {
-	Vec3D pos;
-	Quaternion quat;
+	glm::vec3 pos;
+	glm::vec4 quat;
 };
 
 struct VRButton
@@ -71,7 +29,7 @@ struct VRButton
 	std::string name;
 	bool pressed;
 	float pressure;
-	Vec2D touch_pos;
+	glm::vec2 touch_pos;
 	std::map<std::string, bool> val_types;
 
 	static std::map<std::string, ButtonId> KEY_TO_ID;
@@ -102,7 +60,7 @@ struct VRParams
 	unsigned out_port, vibration_port;
 	unsigned update_freq;
 
-	const unsigned NUM_PARAMS = 5;
+	const unsigned NUM_PARAMS = 6;
 };
 
 class MimicryApp
@@ -148,8 +106,8 @@ private:
 
 void printText(std::string text, int newlines, bool flush);
 void handleButtonByProp(VRButton *button, vr::VRControllerAxis_t axis, int prop);
-Vec3D getPositionFromPose(vr::HmdMatrix34_t matrix);
-Quaternion getOrientationFromPose(vr::HmdMatrix34_t matrix);
+glm::vec3 getPositionFromPose(vr::HmdMatrix34_t matrix);
+glm::vec4 getOrientationFromPose(vr::HmdMatrix34_t matrix);
 
 
 #endif // __MIMICRY_APP_HPP__

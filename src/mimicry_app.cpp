@@ -251,7 +251,7 @@ void handleButtonByProp(VRButton *button, vr::VRControllerAxis_t axis, int prop)
 		case vr::k_eControllerAxis_TrackPad:
 		case vr::k_eControllerAxis_Joystick:
 		{
-			button->touch_pos = Vec2D(axis.x, axis.y);
+			button->touch_pos = glm::vec2(axis.x, axis.y);
 		}	break;
 
 		case vr::k_eControllerAxis_Trigger:
@@ -274,13 +274,13 @@ void handleButtonByProp(VRButton *button, vr::VRControllerAxis_t axis, int prop)
  * 
  * Returns: position vector.
  **/
-Vec3D getPositionFromPose(vr::HmdMatrix34_t matrix) 
+glm::vec3 getPositionFromPose(vr::HmdMatrix34_t matrix) 
 {
-	Vec3D pos;
+	glm::vec3 pos;
 
-	pos.vec[0] = matrix.m[0][3];
-	pos.vec[1] = matrix.m[1][3];
-	pos.vec[2] = matrix.m[2][3];
+	pos.x = matrix.m[0][3];
+	pos.y = matrix.m[1][3];
+	pos.z = matrix.m[2][3];
 
 	return pos;
 }
@@ -293,9 +293,9 @@ Vec3D getPositionFromPose(vr::HmdMatrix34_t matrix)
  * 
  * Returns: orientation quaternion.
  **/
-Quaternion getOrientationFromPose(vr::HmdMatrix34_t matrix) 
+glm::vec4 getOrientationFromPose(vr::HmdMatrix34_t matrix) 
 {
-	Quaternion quat;
+	glm::vec4 quat;
 
 	quat.w = sqrt(fmax(0, 1 + matrix.m[0][0] + matrix.m[1][1] + matrix.m[2][2])) / 2;
 	quat.x = sqrt(fmax(0, 1 + matrix.m[0][0] - matrix.m[1][1] - matrix.m[2][2])) / 2;
@@ -733,7 +733,6 @@ void MimicryApp::runMainLoop(std::string params_file)
 	while (MimicryApp::m_running) {
 		std::chrono::duration<double, std::milli> time_elapsed = end - start;
 		std::chrono::duration<double, std::milli> delta = this->m_refresh_time - time_elapsed;
-		// TODO: Do something to deal with negative values?
 		std::this_thread::sleep_for(delta);
 
 		start = std::chrono::high_resolution_clock::now();

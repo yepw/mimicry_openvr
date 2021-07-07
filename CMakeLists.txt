@@ -31,6 +31,7 @@ catkin_package(
 ## Specify additional locations of header files
 include_directories(
   include
+  include/glm
   ${OpenVRSDK_INCLUDEDIR}
   ${catkin_INCLUDE_DIRS}
 )

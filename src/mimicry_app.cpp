@@ -3,6 +3,7 @@
 #include <map>
 #include <chrono>
 #include <thread>
+#include <poll.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -503,7 +504,7 @@ bool MimicryApp::appInit(std::string filename)
     } 
 
 	// Convert refresh frequency from Hz to actual time for each loop
-	this->m_refresh_time = std::chrono::duration<double, std::milli>(1000 / m_params.update_freq);
+	m_refresh_time = std::chrono::duration<double, std::milli>(1000 / m_params.update_freq);
 
 	return true;
 }
@@ -515,12 +516,18 @@ bool MimicryApp::appInit(std::string filename)
 void MimicryApp::handleInput()
 {
 	// Mark all devices as deactivated and reactivate them if still connected
+	std::vector<DevIx> ix_queue;
 	std::map<DevIx, VRDevice *>::iterator it(m_devices.begin());
 	for ( ; it != m_devices.end(); ++it) {
-		deactivateDevice(it->first);
+		ix_queue.emplace_back(it->first);
 	}
 
-	for (unsigned ix = 0; ix < vr::k_unMaxTrackedDeviceCount; ++ix) {
+	for (auto ix : ix_queue) {
+		// Deletes indexes from m_devices, so shouldn't iterate over it at the same time
+		deactivateDevice(ix);
+	}
+
+	for (unsigned ix = vr::k_unTrackedDeviceIndex_Hmd; ix < vr::k_unMaxTrackedDeviceCount; ++ix) {
 		if (!m_vrs->IsTrackedDeviceConnected(ix)) {
 			continue;
 		}
@@ -604,7 +611,7 @@ void MimicryApp::handleInput()
 				}
 			}
 		}
-		
+
 		dev->pose.pos = getPositionFromPose(dev_pose.mDeviceToAbsoluteTracking);
 		dev->pose.quat = getOrientationFromPose(dev_pose.mDeviceToAbsoluteTracking);
 	}	

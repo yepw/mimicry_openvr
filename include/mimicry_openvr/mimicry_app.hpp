@@ -5,6 +5,7 @@
 #include <map>
 #include <chrono>
 #include <sys/socket.h>
+#include <netinet/in.h>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -81,7 +82,7 @@ private:
 
 	bool m_left_config;
 	bool m_right_config;
-	int m_socket;
+	int m_socket, m_vibration_socket;
 	VRParams m_params;
 	std::map<std::string, VRDevice *> m_inactive_dev;
 	std::map<DevIx, VRDevice *> m_devices;
@@ -108,6 +109,6 @@ void printText(std::string text, int newlines, bool flush);
 void handleButtonByProp(VRButton *button, vr::VRControllerAxis_t axis, int prop);
 glm::vec3 getPositionFromPose(vr::HmdMatrix34_t matrix);
 glm::vec4 getOrientationFromPose(vr::HmdMatrix34_t matrix);
-
+std::string getSocketData(int socket, sockaddr_in &address);
 
 #endif // __MIMICRY_APP_HPP__

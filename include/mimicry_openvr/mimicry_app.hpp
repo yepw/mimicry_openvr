@@ -93,6 +93,7 @@ private:
 
 	void addDeviceToIndex(VRDevice *dev, DevIx ix);
 	VRDevice * findDevFromRole(VRDevice::DeviceRole role, bool from_active);
+	DevIx findDevIndexFromRole(VRDevice::DeviceRole role);
 	VRDevice * activateDevice(DevIx ix);
 	void deactivateDevice(DevIx ix);
 

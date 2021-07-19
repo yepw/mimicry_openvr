@@ -3,7 +3,7 @@
     "_num_devices": 1,
     "_out_addr": "",
     "_out_port": 8081,
-    "_vibr_port": 8082,
+    "_vibration_port": 8082,
     "_update_freq": 60,
     "dev0": {
         "_name": "vive",

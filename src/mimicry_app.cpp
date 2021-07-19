@@ -147,6 +147,29 @@ VRDevice * MimicryApp::findDevFromRole(VRDevice::DeviceRole role, bool from_acti
 }
 
 /**
+ * Find the device index for an active device that matches the given 
+ * role. It's expected that there is only one controller for each role of 
+ * left and right, though no validation is performed. For trackers, the 
+ * first one found will be returned.
+ * 
+ * Params:
+ * 		role - role to search for
+ * 
+ * Returns: Device index if found, 0 otherwise.
+ **/
+DevIx MimicryApp::findDevIndexFromRole(VRDevice::DeviceRole role)
+{
+	std::map<DevIx, VRDevice *>::iterator it(m_devices.begin());
+	for ( ; it != m_devices.end(); ++it) {
+		if (it->second->role == role) {
+			return it->first;
+		}
+	}
+
+	return 0;
+}
+
+/**
  * Move a device from the list of inactive devices to the list of active 
  * devices.
  * This is a helper function to perform the actual move and performs 
@@ -334,7 +357,7 @@ bool MimicryApp::readParameters(std::string filename) {
 	m_params.num_devices = j["_num_devices"];
 	m_params.out_addr = j["_out_addr"];
 	m_params.out_port = j["_out_port"];
-	m_params.vibration_port = j["_vibr_port"];
+	m_params.vibration_port = j["_vibration_port"];
 	m_params.update_freq = j["_update_freq"];
 
 	if (m_params.num_devices <= 0 || m_params.num_devices > vr::k_unMaxTrackedDeviceCount) {
@@ -654,11 +677,6 @@ void MimicryApp::postOutputData()
 			continue;
 		}
 
-		// if (dev->role == VRDevice::DeviceRole::RIGHT) {
-		// 	DevIx ix(it->first);
-		// 	m_vrs->TriggerHapticPulse(ix, ButtonId::k_EButton_SteamVR_Touchpad, 1000);
-		// }
-
 		std::map<ButtonId, VRButton *>::iterator b_it(dev->buttons.begin());
 		for ( ; b_it != dev->buttons.end(); ++b_it) {
 			VRButton *button(b_it->second);
@@ -686,12 +704,83 @@ void MimicryApp::postOutputData()
 	
 	std::string output(j.dump(3));
 	send(m_socket, output.c_str(), output.size(), 0);
-	printText(output);
+	// printText(output);
+}
+
+std::string getSocketData(int socket, sockaddr_in &address)
+{
+	socklen_t len_data;
+	uint static const DATA_SIZE = 2048;
+	char buffer[DATA_SIZE];
+
+	len_data = recvfrom(socket, buffer, DATA_SIZE, MSG_WAITALL, (sockaddr *) &(address), &len_data); 
+	std::string data;
+	if (len_data != -1) {
+		if (len_data < DATA_SIZE) {
+			buffer[len_data] = '\0';
+		}
+		data = buffer;
+	}
+
+	return data;
 }
 
 void MimicryApp::handleVibration()
 {
 	while (!m_configured && m_running) {} // Wait for configuration
+	
+	// Initialize vibration socket
+	int opt = 1;
+	sockaddr_in address;
+
+	if ((m_vibration_socket = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
+		printText("Could not initialize vibration socket.");
+	}
+
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = INADDR_ANY;
+	address.sin_port = htons(m_params.vibration_port);
+   
+	if (bind(m_vibration_socket, (const sockaddr *)&address, sizeof(address)) < 0) { 
+		printText("Vibration socket binding failed."); 
+	}
+
+	pollfd poll_fds;
+	poll_fds.fd = m_vibration_socket;
+	poll_fds.events = POLLIN; // Wait until there's data to read
+
+	uint pulse_time(300); // in msecs
+	while (m_running)
+	{
+		if (poll(&poll_fds, 1, m_refresh_time.count()) > 0) {
+			std::string input_data(getSocketData(m_vibration_socket, address));
+
+			if (input_data.compare("vibrate") == 0) {
+				DevIx right_ix(findDevIndexFromRole(VRDevice::DeviceRole::RIGHT));
+				auto vibration_start(std::chrono::high_resolution_clock::now());
+				auto current_time(vibration_start);
+				auto pulse_duration(std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::milliseconds(pulse_time)));
+				std::chrono::duration<double, std::milli> time_elapsed(current_time - vibration_start);
+				while (time_elapsed < pulse_duration) {
+					m_vrs->TriggerHapticPulse(right_ix, 0, 1);
+
+					current_time = std::chrono::high_resolution_clock::now();
+					time_elapsed = current_time - vibration_start;
+				}
+			}
+			else if (input_data.compare(0, std::string("pulse_time:").length(), "pulse_time:") == 0) {
+				std::string val_str(input_data.substr(std::string("pulse_time:").length()));
+				try {
+					pulse_time = std::stoi(val_str);
+					printText("Vibration pulse duration set to ", 0);
+					printText(val_str);
+				}
+				catch (const std::invalid_argument& exc) {
+					printText("Invalid vibration duration specified." );
+				}
+			}
+		}
+	}
 	
 }
 

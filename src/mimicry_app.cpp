@@ -704,7 +704,7 @@ void MimicryApp::postOutputData()
 	
 	std::string output(j.dump(3));
 	send(m_socket, output.c_str(), output.size(), 0);
-	// printText(output);
+	printText(output);
 }
 
 std::string getSocketData(int socket, sockaddr_in &address)
@@ -716,9 +716,10 @@ std::string getSocketData(int socket, sockaddr_in &address)
 	len_data = recvfrom(socket, buffer, DATA_SIZE, MSG_WAITALL, (sockaddr *) &(address), &len_data); 
 	std::string data;
 	if (len_data != -1) {
-		if (len_data < DATA_SIZE) {
-			buffer[len_data] = '\0';
+		if (len_data >= DATA_SIZE) {
+			len_data = DATA_SIZE-1;
 		}
+		buffer[len_data] = '\0';
 		data = buffer;
 	}
 

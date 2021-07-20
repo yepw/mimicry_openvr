@@ -783,6 +783,7 @@ void MimicryApp::handleVibration()
 		}
 	}
 	
+	shutdown(m_vibration_socket, SHUT_RDWR);
 }
 
 void MimicryApp::handleSigint(int sig)

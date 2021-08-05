@@ -496,36 +496,25 @@ bool MimicryApp::appInit(std::string filename)
 		return false;
 	}
 
-	int opt = 1;
-	sockaddr_in address;
-
 	if ((m_socket = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
 		printText("Could not initialize socket.");
 		return false;
 	}
 
-	address.sin_family = AF_INET;
-	address.sin_port = htons(m_params.out_port);
+	m_address.sin_family = AF_INET;
+	m_address.sin_port = htons(m_params.out_port);
 
 	if (m_params.out_addr == "") {
-		address.sin_addr.s_addr = INADDR_ANY; 
+		m_address.sin_addr.s_addr = INADDR_ANY; 
 	}
 	else {
-		if(inet_pton(AF_INET, m_params.out_addr.c_str(), &address.sin_addr) <= 0)  
+		if(inet_pton(AF_INET, m_params.out_addr.c_str(), &m_address.sin_addr) <= 0)  
     	{ 
 			printText("Invalid address specified."); 
 			return false; 
     	} 
 	}
    
-    if (connect(m_socket, (struct sockaddr *)&address, sizeof(address)) < 0) 
-    { 
-		std::string err_str = strerror(errno);
-        printText("Socket connection failed.");
-		printText("Error: " + err_str);
-        return false; 
-    } 
-
 	// Convert refresh frequency from Hz to actual time for each loop
 	m_refresh_time = std::chrono::duration<double, std::milli>(1000 / m_params.update_freq);
 
@@ -703,7 +692,7 @@ void MimicryApp::postOutputData()
 	}
 	
 	std::string output(j.dump(3));
-	send(m_socket, output.c_str(), output.size(), 0);
+	sendto(m_socket, output.c_str(), strlen(output.c_str()), 0, (sockaddr *) &m_address, sizeof(m_address));
 	printText(output);
 }
 
@@ -731,7 +720,6 @@ void MimicryApp::handleVibration()
 	while (!m_configured && m_running) {} // Wait for configuration
 	
 	// Initialize vibration socket
-	int opt = 1;
 	sockaddr_in address;
 
 	if ((m_vibration_socket = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {

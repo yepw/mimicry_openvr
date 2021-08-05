@@ -83,6 +83,7 @@ private:
 	bool m_left_config;
 	bool m_right_config;
 	int m_socket, m_vibration_socket;
+	sockaddr_in m_address;
 	VRParams m_params;
 	std::map<std::string, VRDevice *> m_inactive_dev;
 	std::map<DevIx, VRDevice *> m_devices;

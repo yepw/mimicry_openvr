@@ -8,8 +8,12 @@ As of June 2020, only Linux is supported (tested under Ubuntu 18.04).
 
 ### Prerequisites:
 * Install Steam
-* Install SteamVR
+* Install SteamVR in Steam
 * Install the [OpenVR package](https://github.com/ValveSoftware/openvr)
+   1. Rollback to `v1.11.11`
+   2. `cd openvr; mkdir build && cd build;`
+   3. `cmake ..`
+   4. `make install`
 
 ### mimicry_control package:
 * Clone this repository into a local directory

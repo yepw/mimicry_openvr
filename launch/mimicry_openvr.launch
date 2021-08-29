@@ -1,6 +1,9 @@
 <?xml version="1.0"?>
 <launch>
       <arg name="config_file"       default="vive_params.json" />
-      <node pkg="mimicry_openvr" type="mimicry_control" name="mimicry_control"
+      <arg name="print_to_screen"       default="true" />
+      <node  if="$(arg print_to_screen)" pkg="mimicry_openvr" type="mimicry_control" name="mimicry_control"
             output="screen" cwd="node"  args="$(arg config_file)" />
+      <node  unless="$(arg print_to_screen)" pkg="mimicry_openvr" type="mimicry_control" name="mimicry_control"
+            cwd="node"  args="$(arg config_file)" />
 </launch>

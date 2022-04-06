@@ -24,7 +24,10 @@ As of June 2020, only Linux is supported (tested under Ubuntu 18.04).
 ## Running
 * Currently, the program reads the `params.json` file from the `param_files` folder, though this will be changed to an argument to the program later. If you need to make any changes to the parameters file, make sure to edit the one in that folder
 * SteamVR must be running in order for the program to run
-
+* If you get 'Headset not detected (108)' when launching SteamVR, try
+```
+sudo chmod a+rw /dev/hidraw*
+```
 ## Parameter File
 The parameter file is a JSON-formatted set of configuration values for the program. This file allows the user to specify program-wide settings, as well as to apply custom names to the controllers and buttons (in order to make parsing output easier).
 
